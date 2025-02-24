@@ -20,16 +20,20 @@ public class Encryptor {
     private final SecureRandom secureRandom;
 
     public Encryptor(String masterPassword, String salt) throws Exception {
-        this.key = generateKey(masterPassword, salt);
+        this(masterPassword, salt, 65536); // Default iterations for backward compatibility
+    }
+
+    public Encryptor(String masterPassword, String salt, int iterations) throws Exception {
+        this.key = generateKey(masterPassword, salt, iterations);
         this.secureRandom = new SecureRandom();
     }
 
-    private SecretKey generateKey(String password, String salt) throws Exception {
+    private SecretKey generateKey(String password, String salt, int iterations) throws Exception {
         SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
         PBEKeySpec spec = new PBEKeySpec(
             password.toCharArray(),
             Base64.getDecoder().decode(salt),
-            ITERATION_COUNT,
+            iterations,
             KEY_LENGTH
         );
         SecretKey tmp = factory.generateSecret(spec);

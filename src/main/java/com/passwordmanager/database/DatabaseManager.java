@@ -17,33 +17,65 @@ public class DatabaseManager {
     private static final String DB_NAME = "passwords.db";
     private Connection connection;
     private Encryptor encryptor;
+    private int currentUserId = -1;  // Track the current logged-in user
 
-    public void initializeDatabase(String masterPassword) {
+    public DatabaseManager() {
         try {
-            // Print the absolute path where database will be created
+            boolean isNewDatabase = !new File(DB_NAME).exists();
+            
+            // Initialize database connection in constructor
             File dbFile = new File(DB_NAME);
             System.out.println("Database location: " + dbFile.getAbsolutePath());
-            
             connection = DriverManager.getConnection("jdbc:sqlite:" + DB_NAME);
-            createTables();
             
-            // Initialize encryptor with master password and salt
-            try (Statement stmt = connection.createStatement()) {
-                ResultSet rs = stmt.executeQuery("SELECT salt FROM users LIMIT 1");
-                if (rs.next()) {
+            if (isNewDatabase) {
+                System.out.println("Creating new database...");
+                createTables();
+            }
+        } catch (SQLException e) {
+            System.err.println("Error initializing database connection: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void initializeDatabase(String masterPassword) throws SQLException {
+        try {
+            String sql = "SELECT id, salt FROM users";
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                
+                boolean userFound = false;
+                while (rs.next()) {
+                    int userId = rs.getInt("id");
                     String salt = rs.getString("salt");
-                    encryptor = new Encryptor(masterPassword, salt);
-                    System.out.println("Encryptor initialized successfully");
-                } else {
-                    System.err.println("No salt found in users table");
+                    String passwordHash = PasswordHasher.hashPassword(masterPassword, salt);
+                    
+                    String verifySQL = "SELECT 1 FROM users WHERE id = ? AND master_password_hash = ? AND salt = ?";
+                    try (PreparedStatement pstmt = connection.prepareStatement(verifySQL)) {
+                        pstmt.setInt(1, userId);
+                        pstmt.setString(2, passwordHash);
+                        pstmt.setString(3, salt);
+                        
+                        ResultSet verifyRs = pstmt.executeQuery();
+                        if (verifyRs.next()) {
+                            currentUserId = userId;  // Set current user
+                            encryptor = new Encryptor(masterPassword, salt);
+                            System.out.println("Encryptor initialized successfully for user " + userId);
+                            userFound = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!userFound) {
+                    throw new SQLException("No matching user found");
                 }
             }
             
-            // Test the connection
             testConnection();
         } catch (Exception e) {
-            System.err.println("Error initializing database: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error initializing encryptor: " + e.getMessage());
+            throw new SQLException("Failed to initialize database", e);
         }
     }
 
@@ -75,19 +107,23 @@ public class DatabaseManager {
                 )
             """);
 
-            // Create passwords table
+            // Create passwords table with user_id
             statement.execute("""
                 CREATE TABLE IF NOT EXISTS passwords (
                     id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
                     title TEXT NOT NULL,
                     username TEXT,
                     password TEXT NOT NULL,
                     url TEXT,
                     notes TEXT,
                     category TEXT,
-                    last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             """);
+            
+            System.out.println("Database tables created successfully");
         }
     }
 
@@ -105,15 +141,6 @@ public class DatabaseManager {
 
     public boolean createUser(String masterPassword) {
         try {
-            // Check if any user exists
-            try (Statement checkStmt = connection.createStatement()) {
-                ResultSet rs = checkStmt.executeQuery("SELECT COUNT(*) FROM users");
-                if (rs.getInt(1) > 0) {
-                    System.out.println("User already exists!");
-                    return false;
-                }
-            }
-
             // Generate salt and hash password
             String salt = PasswordHasher.generateSalt();
             String passwordHash = PasswordHasher.hashPassword(masterPassword, salt);
@@ -123,11 +150,12 @@ public class DatabaseManager {
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
                 pstmt.setString(1, passwordHash);
                 pstmt.setString(2, salt);
-                pstmt.executeUpdate();
+                int result = pstmt.executeUpdate();
                 System.out.println("User created successfully!");
-                return true;
+                return result > 0;
             }
         } catch (SQLException e) {
+            System.err.println("Error creating user: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -135,21 +163,21 @@ public class DatabaseManager {
 
     public boolean verifyMasterPassword(String masterPassword) {
         try {
-            // Get user's salt and password hash
-            try (Statement stmt = connection.createStatement()) {
-                ResultSet rs = stmt.executeQuery("SELECT master_password_hash, salt FROM users LIMIT 1");
-                if (rs.next()) {
+            String sql = "SELECT master_password_hash, salt FROM users";
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                
+                while (rs.next()) {
                     String storedHash = rs.getString("master_password_hash");
                     String salt = rs.getString("salt");
-                    
-                    // Hash the provided password with the stored salt
-                    String providedHash = PasswordHasher.hashPassword(masterPassword, salt);
-                    
-                    // Compare the hashes
-                    return storedHash.equals(providedHash);
+                    String calculatedHash = PasswordHasher.hashPassword(masterPassword, salt);
+                    if (storedHash.equals(calculatedHash)) {
+                        return true;
+                    }
                 }
             }
         } catch (SQLException e) {
+            System.err.println("Error verifying master password: " + e.getMessage());
             e.printStackTrace();
         }
         return false;
@@ -160,23 +188,24 @@ public class DatabaseManager {
     }
 
     public void addPasswordEntry(PasswordEntry entry) throws SQLException {
-        if (encryptor == null) {
-            throw new SQLException("Encryptor not initialized. Please log in first.");
+        if (encryptor == null || currentUserId == -1) {
+            throw new SQLException("Not logged in. Please log in first.");
         }
 
         try {
             String sql = """
-                INSERT INTO passwords (title, username, password, url, notes, category)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO passwords (user_id, title, username, password, url, notes, category)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """;
             
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-                pstmt.setString(1, entry.getTitle());
-                pstmt.setString(2, encryptor.encrypt(entry.getUsername()));
-                pstmt.setString(3, encryptor.encrypt(entry.getPassword()));
-                pstmt.setString(4, encryptor.encrypt(entry.getUrl()));
-                pstmt.setString(5, encryptor.encrypt(entry.getNotes()));
-                pstmt.setString(6, entry.getCategory());
+                pstmt.setInt(1, currentUserId);
+                pstmt.setString(2, entry.getTitle());
+                pstmt.setString(3, encryptor.encrypt(entry.getUsername()));
+                pstmt.setString(4, encryptor.encrypt(entry.getPassword()));
+                pstmt.setString(5, encryptor.encrypt(entry.getUrl()));
+                pstmt.setString(6, encryptor.encrypt(entry.getNotes()));
+                pstmt.setString(7, entry.getCategory());
                 pstmt.executeUpdate();
             }
         } catch (Exception e) {
@@ -185,16 +214,17 @@ public class DatabaseManager {
     }
 
     public List<PasswordEntry> getAllPasswords() throws SQLException {
-        if (encryptor == null) {
-            throw new SQLException("Encryptor not initialized. Please log in first.");
+        if (encryptor == null || currentUserId == -1) {
+            throw new SQLException("Not logged in. Please log in first.");
         }
 
         List<PasswordEntry> passwords = new ArrayList<>();
-        String sql = "SELECT * FROM passwords ORDER BY title";
+        String sql = "SELECT * FROM passwords WHERE user_id = ? ORDER BY title";
         
         try {
-            try (Statement stmt = connection.createStatement();
-                 ResultSet rs = stmt.executeQuery(sql)) {
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setInt(1, currentUserId);
+                ResultSet rs = pstmt.executeQuery();
                 
                 while (rs.next()) {
                     PasswordEntry entry = new PasswordEntry();
@@ -298,5 +328,48 @@ public class DatabaseManager {
             System.err.println("Error during data migration: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    public void deleteUser() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            // Delete all data when deleting user
+            stmt.execute("DELETE FROM passwords");
+            stmt.execute("DELETE FROM users");
+            System.out.println("User and all associated data deleted.");
+        }
+    }
+
+    public void wipeDatabase() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            // Drop all tables
+            stmt.execute("DROP TABLE IF EXISTS passwords");
+            stmt.execute("DROP TABLE IF EXISTS users");
+            System.out.println("Database wiped clean.");
+            
+            // Recreate tables
+            createTables();
+        }
+    }
+
+    public void deleteCurrentUser() throws SQLException {
+        if (currentUserId == -1) {
+            throw new SQLException("No user is currently logged in");
+        }
+
+        try (PreparedStatement pstmt = connection.prepareStatement(
+            "DELETE FROM passwords WHERE user_id = ?")) {
+            pstmt.setInt(1, currentUserId);
+            pstmt.executeUpdate();
+        }
+
+        try (PreparedStatement pstmt = connection.prepareStatement(
+            "DELETE FROM users WHERE id = ?")) {
+            pstmt.setInt(1, currentUserId);
+            pstmt.executeUpdate();
+        }
+
+        System.out.println("User and all associated data deleted.");
+        currentUserId = -1;
+        encryptor = null;
     }
 } 

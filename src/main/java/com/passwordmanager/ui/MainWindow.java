@@ -8,8 +8,10 @@ import javafx.scene.layout.HBox;
 import javafx.geometry.Insets;
 import javafx.stage.Stage;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.scene.Node;
 import com.passwordmanager.database.DatabaseManager;
 import com.passwordmanager.model.PasswordEntry;
+import com.passwordmanager.App;
 import java.sql.SQLException;
 import java.util.List;
 import javafx.collections.FXCollections;
@@ -38,17 +40,56 @@ public class MainWindow {
         BorderPane mainLayout = new BorderPane();
         mainLayout.setPadding(new Insets(10));
 
-        // Create toolbar and search area
-        VBox topArea = new VBox(10);
-        topArea.setPadding(new Insets(5));
-        
-        HBox toolbar = createToolbar();
-        HBox searchBox = createSearchBox();
-        
-        topArea.getChildren().addAll(toolbar, searchBox);
-        mainLayout.setTop(topArea);
+        // Create sidebar with account management buttons
+        VBox sidebar = new VBox(10);
+        sidebar.setPadding(new Insets(5));
+        sidebar.setPrefWidth(150); // Set preferred width for sidebar
 
-        // Create split view
+        // Create account management buttons at the top
+        HBox accountButtons = new HBox(5);
+        Button deleteAccountButton = createDeleteAccountButton();
+        Button logoutButton = createLogoutButton();
+        
+        // Make buttons fill the width equally
+        deleteAccountButton.setMaxWidth(Double.MAX_VALUE);
+        logoutButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(deleteAccountButton, Priority.ALWAYS);
+        HBox.setHgrow(logoutButton, Priority.ALWAYS);
+        
+        accountButtons.getChildren().addAll(deleteAccountButton, logoutButton);
+        sidebar.getChildren().add(accountButtons);
+
+        // Add separator between account management and password management
+        sidebar.getChildren().add(new Separator());
+
+        // Add password management buttons
+        Button addButton = new Button("Add");
+        Button editButton = new Button("Edit");
+        Button deleteButton = new Button("Delete");
+        Button deleteCategoryButton = new Button("Delete Category");
+
+        // Make buttons fill the width
+        addButton.setMaxWidth(Double.MAX_VALUE);
+        editButton.setMaxWidth(Double.MAX_VALUE);
+        deleteButton.setMaxWidth(Double.MAX_VALUE);
+        deleteCategoryButton.setMaxWidth(Double.MAX_VALUE);
+
+        // Add button handlers
+        addButton.setOnAction(e -> handleAddPassword());
+        editButton.setOnAction(e -> handleEditButtonClick());
+        deleteButton.setOnAction(e -> handleDeletePassword());
+        deleteCategoryButton.setOnAction(e -> handleDeleteCategory());
+
+        sidebar.getChildren().addAll(
+            addButton,
+            editButton,
+            deleteButton,
+            deleteCategoryButton
+        );
+
+        mainLayout.setLeft(sidebar);
+
+        // Create split view for password table and categories
         HBox contentArea = new HBox(10);
         contentArea.setPadding(new Insets(5));
 
@@ -57,8 +98,10 @@ public class MainWindow {
         leftPane.setPrefWidth(600);
         HBox.setHgrow(leftPane, Priority.ALWAYS);
         
+        // Add search box above the password table
+        HBox searchBox = createSearchBox();
         passwordTable = createPasswordTable();
-        leftPane.getChildren().add(passwordTable);
+        leftPane.getChildren().addAll(searchBox, passwordTable);
         VBox.setVgrow(passwordTable, Priority.ALWAYS);
 
         // Category list on the right
@@ -101,24 +144,6 @@ public class MainWindow {
 
         // Select "All" category by default
         categoryList.getSelectionModel().select(0);
-    }
-
-    private HBox createToolbar() {
-        HBox toolbar = new HBox(10);
-        toolbar.setPadding(new Insets(5));
-
-        Button addButton = new Button("Add");
-        Button editButton = new Button("Edit");
-        Button deleteButton = new Button("Delete");
-        Button deleteCategoryButton = new Button("Delete Category");
-
-        addButton.setOnAction(e -> handleAddPassword());
-        editButton.setOnAction(e -> handleEditButtonClick());
-        deleteButton.setOnAction(e -> handleDeletePassword());
-        deleteCategoryButton.setOnAction(e -> handleDeleteCategory());
-
-        toolbar.getChildren().addAll(addButton, editButton, deleteButton, deleteCategoryButton);
-        return toolbar;
     }
 
     private HBox createSearchBox() {
@@ -381,6 +406,116 @@ public class MainWindow {
                          "Failed to delete category and its passwords.");
                 e.printStackTrace();
             }
+        }
+    }
+
+    private Button createDeleteAccountButton() {
+        Button deleteAccountButton = new Button("Delete\nAccount");
+        deleteAccountButton.setStyle("""
+            -fx-background-color: #ff4444; 
+            -fx-text-fill: white;
+            -fx-font-size: 11px;
+            -fx-min-height: 40px;
+            -fx-alignment: center;
+            -fx-text-alignment: center;
+            """);
+        
+        deleteAccountButton.setOnAction(e -> {
+            // Create a custom dialog
+            Dialog<String> dialog = new Dialog<>();
+            dialog.setTitle("Delete Account");
+            dialog.setHeaderText("Are you sure you want to delete your account?\n" +
+                               "This will permanently delete all your saved passwords!\n\n" +
+                               "Type 'delete' to confirm:");
+
+            // Create the custom dialog layout
+            DialogPane dialogPane = dialog.getDialogPane();
+            TextField confirmField = new TextField();
+            dialogPane.setContent(confirmField);
+
+            // Add buttons
+            ButtonType deleteButtonType = new ButtonType("Delete Account", ButtonBar.ButtonData.OK_DONE);
+            dialogPane.getButtonTypes().addAll(deleteButtonType, ButtonType.CANCEL);
+
+            // Disable the delete button until "delete" is typed
+            Node deleteButton = dialogPane.lookupButton(deleteButtonType);
+            deleteButton.setDisable(true);
+
+            // Enable delete button only when text is "delete"
+            confirmField.textProperty().addListener((observable, oldValue, newValue) -> {
+                deleteButton.setDisable(!newValue.equals("delete"));
+            });
+
+            // Convert the result
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == deleteButtonType) {
+                    return confirmField.getText();
+                }
+                return null;
+            });
+
+            // Show dialog and handle result
+            dialog.showAndWait().ifPresent(result -> {
+                if (result.equals("delete")) {
+                    try {
+                        dbManager.deleteCurrentUser();
+                        stage.close(); // Close the main window
+                        showLoginScreen(); // Show the login screen again
+                    } catch (SQLException ex) {
+                        showError("Delete Failed", 
+                            "Failed to delete account: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                }
+            });
+        });
+
+        return deleteAccountButton;
+    }
+
+    private Button createLogoutButton() {
+        Button logoutButton = new Button("Log\nOut");
+        logoutButton.setStyle("""
+            -fx-background-color: #666666; 
+            -fx-text-fill: white;
+            -fx-font-size: 11px;
+            -fx-min-height: 40px;
+            -fx-alignment: center;
+            -fx-text-alignment: center;
+            """);
+        
+        logoutButton.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Log Out");
+            confirm.setHeaderText("Are you sure you want to log out?");
+            confirm.setContentText("Any unsaved changes will be lost.");
+
+            confirm.showAndWait().ifPresent(response -> {
+                if (response == ButtonType.OK) {
+                    try {
+                        stage.close(); // Close the main window
+                        showLoginScreen(); // Show the login screen
+                    } catch (Exception ex) {
+                        showError("Logout Failed", 
+                            "Failed to log out: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                }
+            });
+        });
+
+        return logoutButton;
+    }
+
+    private void showLoginScreen() {
+        try {
+            Stage loginStage = new Stage();
+            App app = new App();
+            app.start(loginStage);
+        } catch (Exception e) {
+            showError("Error", 
+                "Failed to return to login screen: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
