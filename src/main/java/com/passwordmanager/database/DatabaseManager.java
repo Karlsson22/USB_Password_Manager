@@ -372,4 +372,26 @@ public class DatabaseManager {
         currentUserId = -1;
         encryptor = null;
     }
+
+    public List<String> getAllCategories() throws SQLException {
+        if (currentUserId == -1) {
+            throw new SQLException("Not logged in. Please log in first.");
+        }
+
+        List<String> categories = new ArrayList<>();
+        String sql = "SELECT DISTINCT category FROM passwords WHERE user_id = ? AND category IS NOT NULL AND category != '' ORDER BY category";
+        
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setInt(1, currentUserId);
+            ResultSet rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                String category = rs.getString("category");
+                if (category != null && !category.isEmpty()) {
+                    categories.add(category);
+                }
+            }
+        }
+        return categories;
+    }
 } 

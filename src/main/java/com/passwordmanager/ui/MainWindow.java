@@ -21,6 +21,10 @@ import javafx.collections.transformation.FilteredList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.ArrayList;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import java.io.IOException;
+import com.passwordmanager.controller.PasswordEntryController;
 
 public class MainWindow {
     private DatabaseManager dbManager;
@@ -237,17 +241,55 @@ public class MainWindow {
     }
 
     private void handleAddPassword() {
-        PasswordEntryDialog dialog = new PasswordEntryDialog(stage);
-        dialog.showAndWait().ifPresent(entry -> {
-            try {
-                dbManager.addPasswordEntry(entry);
-                loadPasswords();
-                System.out.println("Password entry added successfully!");
-            } catch (SQLException e) {
-                showError("Error Adding Password", "Failed to add password entry.");
-                e.printStackTrace();
-            }
-        });
+        try {
+            FXMLLoader loader = new FXMLLoader(PasswordEntryController.class.getResource("/fxml/password_entry.fxml"));
+            PasswordEntryController controller = new PasswordEntryController(dbManager);
+            loader.setController(controller);
+            Parent root = loader.load();
+            
+            Dialog<PasswordEntry> dialog = new Dialog<>();
+            dialog.setTitle("Add Password Entry");
+            dialog.setHeaderText("Enter password details");
+            dialog.initOwner(stage);
+            
+            dialog.getDialogPane().setContent(root);
+            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+            
+            // Enable/Disable OK button based on validation
+            Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
+            okButton.setDisable(true);
+            
+            // Add validation listener
+            controller.titleField.textProperty().addListener((observable, oldValue, newValue) -> 
+                okButton.setDisable(newValue.trim().isEmpty()));
+            
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == ButtonType.OK) {
+                    try {
+                        controller.handleSave();
+                        return controller.getEntry();
+                    } catch (Exception e) {
+                        showError("Error", "Failed to save password: " + e.getMessage());
+                        return null;
+                    }
+                }
+                return null;
+            });
+            
+            dialog.showAndWait().ifPresent(entry -> {
+                try {
+                    dbManager.addPasswordEntry(entry);
+                    loadPasswords();
+                    System.out.println("Password entry added successfully!");
+                } catch (SQLException e) {
+                    showError("Error Adding Password", "Failed to add password entry.");
+                    e.printStackTrace();
+                }
+            });
+        } catch (IOException e) {
+            showError("Error", "Failed to load password entry dialog: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void handleEditPassword(PasswordEntry entry) {
