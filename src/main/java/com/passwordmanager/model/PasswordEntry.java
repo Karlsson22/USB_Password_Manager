@@ -1,6 +1,7 @@
 package com.passwordmanager.model;
 
 import javafx.beans.property.SimpleStringProperty;
+import com.passwordmanager.security.SecureWiper;
 
 public class PasswordEntry {
     private int id;
@@ -46,6 +47,7 @@ public class PasswordEntry {
     }
 
     public void setUsername(String username) {
+        SecureWiper.wipeString(this.username);
         this.username = username;
     }
 
@@ -54,6 +56,7 @@ public class PasswordEntry {
     }
 
     public void setPassword(String password) {
+        SecureWiper.wipeString(this.password);
         this.password = password;
     }
 
@@ -70,6 +73,7 @@ public class PasswordEntry {
     }
 
     public void setNotes(String notes) {
+        SecureWiper.wipeString(this.notes);
         this.notes = notes;
     }
 
@@ -91,5 +95,31 @@ public class PasswordEntry {
 
     public void updateLastModified() {
         this.lastModified = System.currentTimeMillis();
+    }
+
+    /**
+     * Securely wipes all sensitive data from memory
+     */
+    public void secureClear() {
+        SecureWiper.wipeString(username);
+        SecureWiper.wipeString(password);
+        SecureWiper.wipeString(notes);
+        username = null;
+        password = null;
+        notes = null;
+        
+        // Less sensitive data can be cleared normally
+        title = null;
+        url = null;
+        category = null;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            secureClear(); // Ensure sensitive data is wiped when object is garbage collected
+        } finally {
+            super.finalize();
+        }
     }
 } 

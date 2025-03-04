@@ -5,6 +5,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
 import javafx.geometry.Insets;
 import javafx.stage.Stage;
 import javafx.beans.property.SimpleStringProperty;
@@ -12,6 +13,8 @@ import javafx.scene.Node;
 import com.passwordmanager.database.DatabaseManager;
 import com.passwordmanager.model.PasswordEntry;
 import com.passwordmanager.App;
+import com.passwordmanager.security.InputValidator;
+import com.passwordmanager.security.InputValidator.ValidationException;
 import java.sql.SQLException;
 import java.util.List;
 import javafx.collections.FXCollections;
@@ -21,6 +24,17 @@ import javafx.collections.transformation.FilteredList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.ArrayList;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import java.io.IOException;
+import com.passwordmanager.controller.PasswordEntryController;
+import com.passwordmanager.backup.BackupManager;
+import javafx.stage.FileChooser;
+import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.io.File;
+import javafx.geometry.Pos;
 
 public class MainWindow {
     private DatabaseManager dbManager;
@@ -29,6 +43,49 @@ public class MainWindow {
     private ListView<String> categoryList;
     private ObservableList<PasswordEntry> passwordList;
     private ObservableList<String> categories;
+    private static final String BUTTON_STYLE = """
+        -fx-background-color: white;
+        -fx-text-fill: #2C3E50;
+        -fx-font-size: 13px;
+        -fx-padding: 8 15;
+        -fx-border-color: #E0E0E0;
+        -fx-border-radius: 4;
+        -fx-background-radius: 4;
+        -fx-cursor: hand;
+        """;
+    
+    private static final String BUTTON_HOVER_STYLE = """
+        -fx-background-color: #F8F9FA;
+        -fx-text-fill: #2C3E50;
+        -fx-font-size: 13px;
+        -fx-padding: 8 15;
+        -fx-border-color: #0A84FF;
+        -fx-border-radius: 4;
+        -fx-background-radius: 4;
+        -fx-cursor: hand;
+        """;
+        
+    private static final String DANGER_BUTTON_STYLE = """
+        -fx-background-color: white;
+        -fx-text-fill: #DC3545;
+        -fx-font-size: 13px;
+        -fx-padding: 8 15;
+        -fx-border-color: #DC3545;
+        -fx-border-radius: 4;
+        -fx-background-radius: 4;
+        -fx-cursor: hand;
+        """;
+        
+    private static final String DANGER_BUTTON_HOVER_STYLE = """
+        -fx-background-color: #DC3545;
+        -fx-text-fill: white;
+        -fx-font-size: 13px;
+        -fx-padding: 8 15;
+        -fx-border-color: #DC3545;
+        -fx-border-radius: 4;
+        -fx-background-radius: 4;
+        -fx-cursor: hand;
+        """;
 
     public MainWindow(DatabaseManager dbManager, Stage stage) {
         this.dbManager = dbManager;
@@ -38,93 +95,58 @@ public class MainWindow {
 
     public void show() {
         BorderPane mainLayout = new BorderPane();
-        mainLayout.setPadding(new Insets(10));
+        mainLayout.setStyle("-fx-background-color: white;");
+        mainLayout.setPadding(new Insets(15));
 
-        // Create sidebar with account management buttons
-        VBox sidebar = new VBox(10);
-        sidebar.setPadding(new Insets(5));
-        sidebar.setPrefWidth(150); // Set preferred width for sidebar
-
-        // Create account management buttons at the top
-        HBox accountButtons = new HBox(5);
-        Button deleteAccountButton = createDeleteAccountButton();
-        Button logoutButton = createLogoutButton();
-        
-        // Make buttons fill the width equally
-        deleteAccountButton.setMaxWidth(Double.MAX_VALUE);
-        logoutButton.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(deleteAccountButton, Priority.ALWAYS);
-        HBox.setHgrow(logoutButton, Priority.ALWAYS);
-        
-        accountButtons.getChildren().addAll(deleteAccountButton, logoutButton);
-        sidebar.getChildren().add(accountButtons);
-
-        // Add separator between account management and password management
-        sidebar.getChildren().add(new Separator());
-
-        // Add password management buttons
-        Button addButton = new Button("Add");
-        Button editButton = new Button("Edit");
-        Button deleteButton = new Button("Delete");
-        Button deleteCategoryButton = new Button("Delete Category");
-
-        // Make buttons fill the width
-        addButton.setMaxWidth(Double.MAX_VALUE);
-        editButton.setMaxWidth(Double.MAX_VALUE);
-        deleteButton.setMaxWidth(Double.MAX_VALUE);
-        deleteCategoryButton.setMaxWidth(Double.MAX_VALUE);
-
-        // Add button handlers
-        addButton.setOnAction(e -> handleAddPassword());
-        editButton.setOnAction(e -> handleEditButtonClick());
-        deleteButton.setOnAction(e -> handleDeletePassword());
-        deleteCategoryButton.setOnAction(e -> handleDeleteCategory());
-
-        sidebar.getChildren().addAll(
-            addButton,
-            editButton,
-            deleteButton,
-            deleteCategoryButton
-        );
-
+        // Create sidebar
+        VBox sidebar = createSidebar();
         mainLayout.setLeft(sidebar);
 
-        // Create split view for password table and categories
-        HBox contentArea = new HBox(10);
-        contentArea.setPadding(new Insets(5));
-
-        // Password table on the left
-        VBox leftPane = new VBox(5);
-        leftPane.setPrefWidth(600);
-        HBox.setHgrow(leftPane, Priority.ALWAYS);
-        
-        // Add search box above the password table
-        HBox searchBox = createSearchBox();
-        passwordTable = createPasswordTable();
-        leftPane.getChildren().addAll(searchBox, passwordTable);
-        VBox.setVgrow(passwordTable, Priority.ALWAYS);
-
-        // Category list on the right
-        VBox rightPane = new VBox(5);
-        rightPane.setPrefWidth(200);
-        
-        Label categoryLabel = new Label("Categories");
-        categoryLabel.setStyle("-fx-font-weight: bold");
-        
-        categoryList = new ListView<>();
-        categoryList.setPrefWidth(200);
-        VBox.setVgrow(categoryList, Priority.ALWAYS);
-        
-        rightPane.getChildren().addAll(categoryLabel, categoryList);
-
-        contentArea.getChildren().addAll(leftPane, rightPane);
+        // Create main content area
+        VBox contentArea = createContentArea();
         mainLayout.setCenter(contentArea);
+
+        // Load passwords
+        loadPasswords();
+
+        Scene scene = new Scene(mainLayout, 1000, 600);
+        stage.setTitle("The Password Vault - Dashboard");
+        stage.setScene(scene);
+        stage.show();
+
+        // Select "All" category by default
+        categoryList.getSelectionModel().select(0);
+    }
+
+    private VBox createSidebar() {
+        VBox sidebar = new VBox(15);
+        sidebar.setStyle("""
+            -fx-background-color: #F8F9FA;
+            -fx-padding: 15;
+            -fx-border-color: #E0E0E0;
+            -fx-border-width: 0 1 0 0;
+            """);
+        sidebar.setPrefWidth(200);
+
+        Label categoriesHeader = new Label("Categories");
+        categoriesHeader.setStyle("""
+            -fx-font-size: 16px;
+            -fx-font-weight: bold;
+            -fx-text-fill: #2C3E50;
+            """);
+
+        categoryList = new ListView<>();
+        categoryList.setStyle("""
+            -fx-background-color: transparent;
+            -fx-border-color: transparent;
+            """);
+        VBox.setVgrow(categoryList, Priority.ALWAYS);
 
         // Initialize categories
         categories = FXCollections.observableArrayList();
-        categories.add("All"); // Add "All" category
+        categories.add("All");
         categoryList.setItems(categories);
-        
+
         // Add category selection handler
         categoryList.getSelectionModel().selectedItemProperty().addListener(
             (observable, oldValue, newValue) -> {
@@ -134,60 +156,137 @@ public class MainWindow {
             }
         );
 
-        // Load passwords
-        loadPasswords();
+        Button addButton = createStyledButton("+ New Password", false);
+        Button backupButton = createStyledButton("Backup", false);
+        Button restoreButton = createStyledButton("Restore", false);
+        Button logoutButton = createStyledButton("Logout", true);
+        Button deleteAccountButton = createStyledButton("Delete Account", true);
 
-        Scene scene = new Scene(mainLayout, 800, 600);
-        stage.setTitle("Password Manager - Main Window");
-        stage.setScene(scene);
-        stage.show();
+        addButton.setOnAction(e -> handleAddPassword());
+        backupButton.setOnAction(e -> handleBackup());
+        restoreButton.setOnAction(e -> handleRestore());
+        logoutButton.setOnAction(e -> handleLogout());
+        deleteAccountButton.setOnAction(e -> handleDeleteAccount());
 
-        // Select "All" category by default
-        categoryList.getSelectionModel().select(0);
+        // Add a separator before account management buttons
+        Separator accountSeparator = new Separator();
+        accountSeparator.setPadding(new Insets(5, 0, 5, 0));
+
+        sidebar.getChildren().addAll(
+            categoriesHeader,
+            categoryList,
+            new Separator(),
+            addButton,
+            backupButton,
+            restoreButton,
+            accountSeparator,
+            deleteAccountButton,
+            logoutButton
+        );
+
+        return sidebar;
+    }
+
+    private VBox createContentArea() {
+        VBox contentArea = new VBox(15);
+        contentArea.setPadding(new Insets(0, 0, 0, 15));
+
+        // Create search box
+        HBox searchBox = createSearchBox();
+
+        // Create password table
+        passwordTable = createPasswordTable();
+        VBox.setVgrow(passwordTable, Priority.ALWAYS);
+
+        // Create action buttons
+        HBox actionButtons = new HBox(10);
+        Button editButton = createStyledButton("Edit", false);
+        Button deleteButton = createStyledButton("Delete", true);
+        Button deleteCategoryButton = createStyledButton("Delete Category", true);
+
+        editButton.setOnAction(e -> handleEditButtonClick());
+        deleteButton.setOnAction(e -> handleDeletePassword());
+        deleteCategoryButton.setOnAction(e -> handleDeleteCategory());
+
+        actionButtons.getChildren().addAll(editButton, deleteButton, deleteCategoryButton);
+
+        contentArea.getChildren().addAll(searchBox, passwordTable, actionButtons);
+        return contentArea;
+    }
+
+    private Button createStyledButton(String text, boolean isDanger) {
+        Button button = new Button(text);
+        button.setMaxWidth(Double.MAX_VALUE);
+        
+        String normalStyle = isDanger ? DANGER_BUTTON_STYLE : BUTTON_STYLE;
+        String hoverStyle = isDanger ? DANGER_BUTTON_HOVER_STYLE : BUTTON_HOVER_STYLE;
+        
+        button.setStyle(normalStyle);
+        button.setOnMouseEntered(e -> button.setStyle(hoverStyle));
+        button.setOnMouseExited(e -> button.setStyle(normalStyle));
+        
+        return button;
     }
 
     private HBox createSearchBox() {
         HBox searchBox = new HBox(10);
-        searchBox.setPadding(new Insets(0, 5, 5, 5));
+        searchBox.setAlignment(Pos.CENTER_LEFT);
         
-        Label searchLabel = new Label("Search:");
         TextField searchField = new TextField();
-        searchField.setPromptText("Search by title...");
-        searchField.setPrefWidth(200);
+        searchField.setPromptText("Search passwords...");
+        searchField.setPrefWidth(300);
+        searchField.setStyle("""
+            -fx-background-color: white;
+            -fx-border-color: #E0E0E0;
+            -fx-border-radius: 4;
+            -fx-padding: 8 12;
+            -fx-font-size: 13px;
+            """);
         
         // Add search functionality
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
             filterTable(newValue);
         });
         
-        searchBox.getChildren().addAll(searchLabel, searchField);
+        searchBox.getChildren().add(searchField);
         return searchBox;
     }
 
     private TableView<PasswordEntry> createPasswordTable() {
         TableView<PasswordEntry> table = new TableView<>();
+        table.setStyle("""
+            -fx-background-color: white;
+            -fx-border-color: #E0E0E0;
+            -fx-border-radius: 4;
+            """);
 
         // Create columns
         TableColumn<PasswordEntry, String> titleCol = new TableColumn<>("Title");
-        titleCol.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getTitle()));
-
         TableColumn<PasswordEntry, String> usernameCol = new TableColumn<>("Username");
-        usernameCol.setCellValueFactory(cellData -> {
-            String username = cellData.getValue().getUsername();
-            return new SimpleStringProperty(username != null ? username : "");
-        });
-
         TableColumn<PasswordEntry, String> urlCol = new TableColumn<>("URL");
-        urlCol.setCellValueFactory(cellData -> {
-            String url = cellData.getValue().getUrl();
-            return new SimpleStringProperty(url != null ? url : "");
-        });
-
         TableColumn<PasswordEntry, String> categoryCol = new TableColumn<>("Category");
-        categoryCol.setCellValueFactory(cellData -> {
-            String category = cellData.getValue().getCategory();
-            return new SimpleStringProperty(category != null ? category : "");
-        });
+
+        // Style the columns
+        String columnStyle = "-fx-alignment: CENTER-LEFT; -fx-padding: 10;";
+        titleCol.setStyle(columnStyle);
+        usernameCol.setStyle(columnStyle);
+        urlCol.setStyle(columnStyle);
+        categoryCol.setStyle(columnStyle);
+
+        // Set column widths
+        titleCol.setPrefWidth(200);
+        usernameCol.setPrefWidth(150);
+        urlCol.setPrefWidth(200);
+        categoryCol.setPrefWidth(150);
+
+        // Set cell value factories
+        titleCol.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getTitle()));
+        usernameCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+            cellData.getValue().getUsername() != null ? cellData.getValue().getUsername() : ""));
+        urlCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+            cellData.getValue().getUrl() != null ? cellData.getValue().getUrl() : ""));
+        categoryCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+            cellData.getValue().getCategory() != null ? cellData.getValue().getCategory() : ""));
 
         // Add double-click handler
         table.setRowFactory(tv -> {
@@ -237,31 +336,87 @@ public class MainWindow {
     }
 
     private void handleAddPassword() {
-        PasswordEntryDialog dialog = new PasswordEntryDialog(stage);
-        dialog.showAndWait().ifPresent(entry -> {
-            try {
-                dbManager.addPasswordEntry(entry);
-                loadPasswords();
-                System.out.println("Password entry added successfully!");
-            } catch (SQLException e) {
-                showError("Error Adding Password", "Failed to add password entry.");
-                e.printStackTrace();
-            }
-        });
+        try {
+            FXMLLoader loader = new FXMLLoader(PasswordEntryController.class.getResource("/fxml/password_entry.fxml"));
+            PasswordEntryController controller = new PasswordEntryController(dbManager);
+            loader.setController(controller);
+            Parent root = loader.load();
+            
+            Dialog<PasswordEntry> dialog = new Dialog<>();
+            dialog.setTitle("Add Password Entry");
+            dialog.setHeaderText(null);
+            dialog.getDialogPane().setContent(root);
+            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+            
+            Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
+            okButton.setDisable(false);
+            
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == ButtonType.OK) {
+                    try {
+                        return controller.getEntry();
+                    } catch (ValidationException e) {
+                        showError("Validation Error", e.getMessage());
+                        return null;
+                    }
+                }
+                return null;
+            });
+            
+            dialog.showAndWait().ifPresent(entry -> {
+                if (entry != null) {
+                    try {
+                        dbManager.addPasswordEntry(entry);
+                        loadPasswords();
+                    } catch (SQLException | ValidationException e) {
+                        showError("Error", "Failed to add password entry: " + e.getMessage());
+                    }
+                }
+            });
+        } catch (IOException e) {
+            showError("Error", "Failed to load password entry dialog: " + e.getMessage());
+        }
     }
 
     private void handleEditPassword(PasswordEntry entry) {
-        PasswordDetailDialog dialog = new PasswordDetailDialog(stage, entry);
-        dialog.showAndWait().ifPresent(updatedEntry -> {
-            try {
-                dbManager.updatePasswordEntry(updatedEntry);
-                loadPasswords();  // Refresh the table
-                System.out.println("Password entry updated successfully!");
-            } catch (SQLException e) {
-                showError("Error Updating Password", "Failed to update password entry.");
-                e.printStackTrace();
-            }
-        });
+        try {
+            FXMLLoader loader = new FXMLLoader(PasswordEntryController.class.getResource("/fxml/password_entry.fxml"));
+            PasswordEntryController controller = new PasswordEntryController(dbManager);
+            loader.setController(controller);
+            Parent root = loader.load();
+            controller.setEntry(entry);
+            
+            Dialog<PasswordEntry> dialog = new Dialog<>();
+            dialog.setTitle("Edit Password Entry");
+            dialog.setHeaderText(null);
+            dialog.getDialogPane().setContent(root);
+            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+            
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == ButtonType.OK) {
+                    try {
+                        return controller.getEntry();
+                    } catch (ValidationException e) {
+                        showError("Validation Error", e.getMessage());
+                        return null;
+                    }
+                }
+                return null;
+            });
+            
+            dialog.showAndWait().ifPresent(updatedEntry -> {
+                if (updatedEntry != null) {
+                    try {
+                        dbManager.updatePasswordEntry(updatedEntry);
+                        loadPasswords();
+                    } catch (SQLException | ValidationException e) {
+                        showError("Error", "Failed to update password entry: " + e.getMessage());
+                    }
+                }
+            });
+        } catch (IOException e) {
+            showError("Error", "Failed to load password entry dialog: " + e.getMessage());
+        }
     }
 
     private void handleDeletePassword() {
@@ -278,28 +433,60 @@ public class MainWindow {
         }
 
         // Show confirmation dialog
-        Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Dialog<Boolean> confirmDialog = new Dialog<>();
         confirmDialog.setTitle("Confirm Deletion");
         confirmDialog.setHeaderText("Delete Password Entry");
-        confirmDialog.setContentText("Are you sure you want to delete the password entry for: " + 
-                                   selectedEntry.getTitle() + "?\n\nThis action cannot be undone.");
+        
+        // Create layout for confirmation
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        
+        grid.add(new Label("Are you sure you want to delete this entry?"), 0, 0);
+        grid.add(new Label("Title: " + selectedEntry.getTitle()), 0, 1);
+        grid.add(new Label("This action cannot be undone."), 0, 2);
+        
+        confirmDialog.getDialogPane().setContent(grid);
+        
+        // Add buttons
+        ButtonType deleteButton = new ButtonType("Delete", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        confirmDialog.getDialogPane().getButtonTypes().addAll(deleteButton, cancelButton);
+        
+        // Set result converter
+        confirmDialog.setResultConverter(dialogButton -> dialogButton == deleteButton);
 
-        // Add custom buttons
-        ButtonType deleteButton = new ButtonType("Yes, Delete", ButtonBar.ButtonData.YES);
-        ButtonType cancelButton = new ButtonType("No, Cancel", ButtonBar.ButtonData.NO);
-        confirmDialog.getButtonTypes().setAll(deleteButton, cancelButton);
-
-        // Show dialog and wait for response
-        if (confirmDialog.showAndWait().orElse(cancelButton) == deleteButton) {
-            try {
-                dbManager.deletePasswordEntry(selectedEntry.getId());
-                loadPasswords();  // Refresh the table
-                System.out.println("Password entry deleted successfully!");
-            } catch (SQLException e) {
-                showError("Error Deleting Password", "Failed to delete password entry.");
-                e.printStackTrace();
+        // Show dialog and handle result
+        confirmDialog.showAndWait().ifPresent(confirmed -> {
+            if (confirmed) {
+                try {
+                    // Store entry ID as the entry will be cleared
+                    int entryId = selectedEntry.getId();
+                    String entryTitle = selectedEntry.getTitle();
+                    
+                    // Securely clear sensitive data
+                    selectedEntry.setPassword(null);
+                    selectedEntry.setUsername(null);
+                    selectedEntry.setNotes(null);
+                    
+                    // Delete from database
+                    dbManager.deletePasswordEntry(entryId);
+                    
+                    // Clear selection and refresh table
+                    passwordTable.getSelectionModel().clearSelection();
+                    loadPasswords();
+                    
+                    // Log deletion (without sensitive data)
+                    System.out.println("Password entry '" + entryTitle + "' deleted successfully");
+                } catch (SQLException e) {
+                    showError("Error Deleting Password", "Failed to delete password entry: " + e.getMessage());
+                    e.printStackTrace();
+                } finally {
+                    System.gc();
+                }
             }
-        }
+        });
     }
 
     private void handleEditButtonClick() {
@@ -360,151 +547,98 @@ public class MainWindow {
         }
 
         // Show confirmation dialog
-        Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Dialog<Boolean> confirmDialog = new Dialog<>();
         confirmDialog.setTitle("Confirm Category Deletion");
         confirmDialog.setHeaderText("Delete Category and Associated Passwords");
-        confirmDialog.setContentText(
-            "Are you sure you want to delete the category '" + selectedCategory + 
-            "' and ALL passwords in this category?\n\n" +
-            "This action cannot be undone!");
+        
+        // Create layout for confirmation
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        
+        grid.add(new Label("Are you sure you want to delete the category '" + selectedCategory + "'?"), 0, 0);
+        grid.add(new Label("WARNING: This will delete ALL passwords in this category!"), 0, 1);
+        grid.add(new Label("This action cannot be undone."), 0, 2);
+        
+        confirmDialog.getDialogPane().setContent(grid);
+        
+        // Add buttons
+        ButtonType deleteButton = new ButtonType("Delete Category", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        confirmDialog.getDialogPane().getButtonTypes().addAll(deleteButton, cancelButton);
+        
+        // Set result converter
+        confirmDialog.setResultConverter(dialogButton -> dialogButton == deleteButton);
 
-        // Add custom buttons
-        ButtonType deleteButton = new ButtonType("Yes, Delete Category", ButtonBar.ButtonData.YES);
-        ButtonType cancelButton = new ButtonType("No, Cancel", ButtonBar.ButtonData.NO);
-        confirmDialog.getButtonTypes().setAll(deleteButton, cancelButton);
-
-        if (confirmDialog.showAndWait().orElse(cancelButton) == deleteButton) {
-            try {
-                // Get all passwords in this category
-                List<PasswordEntry> toDelete = new ArrayList<>();
-                for (PasswordEntry entry : passwordList) {
-                    if (selectedCategory.equals(entry.getCategory())) {
-                        toDelete.add(entry);
+        // Show dialog and handle result
+        confirmDialog.showAndWait().ifPresent(confirmed -> {
+            if (confirmed) {
+                try {
+                    // Get all passwords in this category
+                    List<PasswordEntry> toDelete = new ArrayList<>();
+                    for (PasswordEntry entry : passwordList) {
+                        if (selectedCategory.equals(entry.getCategory())) {
+                            toDelete.add(entry);
+                        }
                     }
+
+                    int deletedCount = 0;
+                    // Delete all passwords in the category
+                    for (PasswordEntry entry : toDelete) {
+                        // Securely clear sensitive data
+                        entry.setPassword(null);
+                        entry.setUsername(null);
+                        entry.setNotes(null);
+                        
+                        dbManager.deletePasswordEntry(entry.getId());
+                        deletedCount++;
+                    }
+
+                    // Clear selection and refresh views
+                    categoryList.getSelectionModel().select("All");
+                    loadPasswords();
+                    
+                    // Show success message
+                    Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+                    successAlert.setTitle("Category Deleted");
+                    successAlert.setHeaderText(null);
+                    successAlert.setContentText(
+                        "Category '" + selectedCategory + "' and " + 
+                        deletedCount + " password(s) were successfully deleted.");
+                    successAlert.show();
+                    
+                    // Log deletion (without sensitive data)
+                    System.out.println("Category '" + selectedCategory + "' deleted with " + deletedCount + " entries");
+                } catch (SQLException e) {
+                    showError("Error Deleting Category", 
+                             "Failed to delete category and its passwords: " + e.getMessage());
+                    e.printStackTrace();
+                } finally {
+                    System.gc();
                 }
-
-                // Delete all passwords in the category
-                for (PasswordEntry entry : toDelete) {
-                    dbManager.deletePasswordEntry(entry.getId());
-                }
-
-                // Refresh the view
-                loadPasswords();
-                categoryList.getSelectionModel().select("All");
-                
-                // Show success message
-                Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
-                successAlert.setTitle("Category Deleted");
-                successAlert.setHeaderText(null);
-                successAlert.setContentText(
-                    "Category '" + selectedCategory + "' and " + 
-                    toDelete.size() + " password(s) were successfully deleted.");
-                successAlert.show();
-
-            } catch (SQLException e) {
-                showError("Error Deleting Category", 
-                         "Failed to delete category and its passwords.");
-                e.printStackTrace();
             }
-        }
+        });
     }
 
-    private Button createDeleteAccountButton() {
-        Button deleteAccountButton = new Button("Delete\nAccount");
-        deleteAccountButton.setStyle("""
-            -fx-background-color: #ff4444; 
-            -fx-text-fill: white;
-            -fx-font-size: 11px;
-            -fx-min-height: 40px;
-            -fx-alignment: center;
-            -fx-text-alignment: center;
-            """);
-        
-        deleteAccountButton.setOnAction(e -> {
-            // Create a custom dialog
-            Dialog<String> dialog = new Dialog<>();
-            dialog.setTitle("Delete Account");
-            dialog.setHeaderText("Are you sure you want to delete your account?\n" +
-                               "This will permanently delete all your saved passwords!\n\n" +
-                               "Type 'delete' to confirm:");
+    private void handleLogout() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Log Out");
+        confirm.setHeaderText("Are you sure you want to log out?");
+        confirm.setContentText("Any unsaved changes will be lost.");
 
-            // Create the custom dialog layout
-            DialogPane dialogPane = dialog.getDialogPane();
-            TextField confirmField = new TextField();
-            dialogPane.setContent(confirmField);
-
-            // Add buttons
-            ButtonType deleteButtonType = new ButtonType("Delete Account", ButtonBar.ButtonData.OK_DONE);
-            dialogPane.getButtonTypes().addAll(deleteButtonType, ButtonType.CANCEL);
-
-            // Disable the delete button until "delete" is typed
-            Node deleteButton = dialogPane.lookupButton(deleteButtonType);
-            deleteButton.setDisable(true);
-
-            // Enable delete button only when text is "delete"
-            confirmField.textProperty().addListener((observable, oldValue, newValue) -> {
-                deleteButton.setDisable(!newValue.equals("delete"));
-            });
-
-            // Convert the result
-            dialog.setResultConverter(dialogButton -> {
-                if (dialogButton == deleteButtonType) {
-                    return confirmField.getText();
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    stage.close(); // Close the main window
+                    showLoginScreen(); // Show the login screen
+                } catch (Exception ex) {
+                    showError("Logout Failed", 
+                        "Failed to log out: " + ex.getMessage());
+                    ex.printStackTrace();
                 }
-                return null;
-            });
-
-            // Show dialog and handle result
-            dialog.showAndWait().ifPresent(result -> {
-                if (result.equals("delete")) {
-                    try {
-                        dbManager.deleteCurrentUser();
-                        stage.close(); // Close the main window
-                        showLoginScreen(); // Show the login screen again
-                    } catch (SQLException ex) {
-                        showError("Delete Failed", 
-                            "Failed to delete account: " + ex.getMessage());
-                        ex.printStackTrace();
-                    }
-                }
-            });
+            }
         });
-
-        return deleteAccountButton;
-    }
-
-    private Button createLogoutButton() {
-        Button logoutButton = new Button("Log\nOut");
-        logoutButton.setStyle("""
-            -fx-background-color: #666666; 
-            -fx-text-fill: white;
-            -fx-font-size: 11px;
-            -fx-min-height: 40px;
-            -fx-alignment: center;
-            -fx-text-alignment: center;
-            """);
-        
-        logoutButton.setOnAction(e -> {
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-            confirm.setTitle("Log Out");
-            confirm.setHeaderText("Are you sure you want to log out?");
-            confirm.setContentText("Any unsaved changes will be lost.");
-
-            confirm.showAndWait().ifPresent(response -> {
-                if (response == ButtonType.OK) {
-                    try {
-                        stage.close(); // Close the main window
-                        showLoginScreen(); // Show the login screen
-                    } catch (Exception ex) {
-                        showError("Logout Failed", 
-                            "Failed to log out: " + ex.getMessage());
-                        ex.printStackTrace();
-                    }
-                }
-            });
-        });
-
-        return logoutButton;
     }
 
     private void showLoginScreen() {
@@ -525,5 +659,194 @@ public class MainWindow {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+
+    private void handleBackup() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Database Backup");
+        fileChooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Password Manager Backup", "*.pmbackup")
+        );
+        
+        // Set initial filename with timestamp
+        String timestamp = LocalDateTime.now().format(
+            DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        );
+        fileChooser.setInitialFileName("backup_" + timestamp);
+        
+        File file = fileChooser.showSaveDialog(stage);
+        if (file != null) {
+            try {
+                // Get the master key from DatabaseManager
+                SecretKey masterKey = dbManager.getMasterKey();
+                
+                // Create backup manager
+                BackupManager backupManager = new BackupManager(
+                    dbManager.getDatabasePath(),
+                    masterKey
+                );
+                
+                // Create the backup
+                backupManager.createBackup(file.getPath());
+                
+                showInfo("Backup Created", 
+                    "Database backup has been created successfully!\n" +
+                    "Location: " + file.getPath());
+                
+            } catch (Exception ex) {
+                showError("Backup Failed", 
+                    "Failed to create backup: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void handleRestore() {
+        // Show warning dialog
+        Alert confirm = new Alert(Alert.AlertType.WARNING);
+        confirm.setTitle("Restore Database");
+        confirm.setHeaderText("Are you sure you want to restore from backup?");
+        confirm.setContentText(
+            "This will replace your current database with the backup.\n" +
+            "All current data will be lost!\n\n" +
+            "Make sure you have a backup of your current database if needed."
+        );
+        
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                FileChooser fileChooser = new FileChooser();
+                fileChooser.setTitle("Select Backup File");
+                fileChooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Password Manager Backup", "*.pmbackup")
+                );
+                
+                File file = fileChooser.showOpenDialog(stage);
+                if (file != null) {
+                    try {
+                        // Get the master key
+                        SecretKey masterKey = dbManager.getMasterKey();
+                        
+                        // Create backup manager
+                        BackupManager backupManager = new BackupManager(
+                            dbManager.getDatabasePath(),
+                            masterKey
+                        );
+                        
+                        // Close current database connection
+                        dbManager.closeConnection();
+                        
+                        // Restore the backup
+                        backupManager.restoreBackup(
+                            file.getPath(),
+                            dbManager.getDatabasePath()
+                        );
+                        
+                        // Show success message and restart application
+                        showInfo("Restore Successful", 
+                            "Database has been restored successfully!\n" +
+                            "The application will now restart.");
+                        
+                        restartApplication();
+                        
+                    } catch (Exception ex) {
+                        showError("Restore Failed", 
+                            "Failed to restore backup: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
+    }
+
+    private void restartApplication() {
+        // Close the current window
+        stage.close();
+        
+        // Create and show a new login window
+        try {
+            Stage loginStage = new Stage();
+            App app = new App();
+            app.start(loginStage);
+        } catch (Exception e) {
+            showError("Restart Failed", 
+                "Failed to restart application: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void showInfo(String title, String content) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    private void handleDeleteAccount() {
+        // Create a custom dialog
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Delete Account");
+        dialog.setHeaderText("Are you sure you want to delete your account?\n" +
+                           "This will permanently delete all your saved passwords!\n\n" +
+                           "Type 'delete' to confirm:");
+
+        // Create the custom dialog layout
+        DialogPane dialogPane = dialog.getDialogPane();
+        TextField confirmField = new TextField();
+        confirmField.setStyle("""
+            -fx-background-color: white;
+            -fx-border-color: #E0E0E0;
+            -fx-border-radius: 4;
+            -fx-padding: 8 12;
+            -fx-font-size: 13px;
+            """);
+        dialogPane.setContent(confirmField);
+
+        // Add buttons
+        ButtonType deleteButtonType = new ButtonType("Delete Account", ButtonBar.ButtonData.OK_DONE);
+        dialogPane.getButtonTypes().addAll(deleteButtonType, ButtonType.CANCEL);
+
+        // Style the dialog
+        dialogPane.setStyle("""
+            -fx-background-color: white;
+            -fx-padding: 20;
+            """);
+
+        // Get the delete button and style it
+        Button deleteButton = (Button) dialogPane.lookupButton(deleteButtonType);
+        deleteButton.setStyle(DANGER_BUTTON_STYLE);
+        deleteButton.setOnMouseEntered(e -> deleteButton.setStyle(DANGER_BUTTON_HOVER_STYLE));
+        deleteButton.setOnMouseExited(e -> deleteButton.setStyle(DANGER_BUTTON_STYLE));
+
+        // Disable the delete button until "delete" is typed
+        deleteButton.setDisable(true);
+
+        // Enable delete button only when text is "delete"
+        confirmField.textProperty().addListener((observable, oldValue, newValue) -> {
+            deleteButton.setDisable(!newValue.equals("delete"));
+        });
+
+        // Convert the result
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == deleteButtonType) {
+                return confirmField.getText();
+            }
+            return null;
+        });
+
+        // Show dialog and handle result
+        dialog.showAndWait().ifPresent(result -> {
+            if (result.equals("delete")) {
+                try {
+                    dbManager.deleteCurrentUser();
+                    stage.close(); // Close the main window
+                    showLoginScreen(); // Show the login screen again
+                } catch (SQLException ex) {
+                    showError("Delete Failed", 
+                        "Failed to delete account: " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+        });
     }
 } 

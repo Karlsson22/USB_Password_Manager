@@ -8,6 +8,8 @@ import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import com.passwordmanager.database.DatabaseManager;
 import com.passwordmanager.ui.LoginDialog;
 import com.passwordmanager.ui.SignUpDialog;
@@ -15,9 +17,12 @@ import com.passwordmanager.security.SecurityKeyManager;
 import java.sql.SQLException;
 import com.passwordmanager.ui.MainWindow;
 import java.io.File;
+import java.io.FileInputStream;
+import com.passwordmanager.security.LoginAttemptManager;
 
 public class App extends Application {
     private DatabaseManager dbManager;
+    private static final String APP_TITLE = "The Password Vault";
 
     @Override
     public void start(Stage stage) {
@@ -30,35 +35,82 @@ public class App extends Application {
         }
 
         // Create welcome screen
-        VBox welcomeBox = new VBox(10);
+        VBox welcomeBox = new VBox(15);
         welcomeBox.setAlignment(Pos.CENTER);
         welcomeBox.setPadding(new Insets(20));
 
-        Label titleLabel = new Label("Password Manager");
-        titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+        // Add logo
+        try {
+            Image logo = new Image(getClass().getResourceAsStream("/pics/VaultLogo.jpg"));
+            ImageView logoView = new ImageView(logo);
+            logoView.setFitHeight(150);
+            logoView.setFitWidth(150);
+            logoView.setPreserveRatio(true);
+            if (logo.isError()) {
+                throw new Exception("Failed to load image: " + logo.getException().getMessage());
+            }
+            welcomeBox.getChildren().add(logoView);
+        } catch (Exception e) {
+            System.err.println("Failed to load logo: " + e.getMessage());
+            e.printStackTrace();
+        }
 
-        Button loginButton = new Button("Login");
-        Button signUpButton = new Button("Sign Up");
-        Button resetButton = new Button("Reset Database");
+        Label titleLabel = new Label(APP_TITLE);
+        titleLabel.setStyle("""
+            -fx-font-size: 28px;
+            -fx-font-weight: bold;
+            -fx-font-family: 'Segoe UI';
+            -fx-text-fill: #2C3E50;
+            """);
+        titleLabel.setPadding(new Insets(0, 0, 20, 0));
 
-        HBox buttonBox = new HBox(10);
-        buttonBox.setAlignment(Pos.CENTER);
-        buttonBox.getChildren().addAll(loginButton, signUpButton, resetButton);
+        // Create buttons with consistent styling
+        Button loginButton = createStyledButton("Login", false);
+        Button signUpButton = createStyledButton("Sign Up", false);
 
-        welcomeBox.getChildren().addAll(titleLabel, buttonBox);
+        VBox buttonContainer = new VBox(10);
+        buttonContainer.setAlignment(Pos.CENTER);
+        buttonContainer.getChildren().addAll(loginButton, signUpButton);
+
+        welcomeBox.getChildren().addAll(titleLabel, buttonContainer);
 
         // Handle login button
         loginButton.setOnAction(e -> {
             LoginDialog loginDialog = new LoginDialog(stage);
             loginDialog.showAndWait().ifPresent(result -> {
+                String username = result.getMasterPassword(); // Using master password as username for tracking
+                LoginAttemptManager attemptManager = LoginAttemptManager.getInstance();
+                
+                // Check if the user is locked out
+                if (attemptManager.isLockedOut(username)) {
+                    long remainingSeconds = attemptManager.getRemainingLockoutSeconds(username);
+                    showError("Account Locked", 
+                        String.format("Too many failed attempts. Please try again in %d seconds.", remainingSeconds));
+                    return;
+                }
+                
                 try {
                     if (dbManager.verifyMasterPassword(result.getMasterPassword()) &&
                         SecurityKeyManager.verifyKeyFile(result.getMasterPassword(), result.getKeyFilePath())) {
                         
+                        // Reset attempts on successful login
+                        attemptManager.resetAttempts(username);
+                        
                         dbManager.initializeDatabase(result.getMasterPassword());
                         showMainWindow(stage);
                     } else {
-                        showError("Login Failed", "Invalid password or key file.");
+                        // Record failed attempt
+                        attemptManager.recordFailedAttempt(username);
+                        
+                        int remainingAttempts = attemptManager.getRemainingAttempts(username);
+                        if (remainingAttempts > 0) {
+                            showError("Login Failed", 
+                                String.format("Invalid password or key file. %d attempts remaining.", remainingAttempts));
+                        } else {
+                            long lockoutSeconds = attemptManager.getRemainingLockoutSeconds(username);
+                            showError("Account Locked", 
+                                String.format("Too many failed attempts. Please try again in %d seconds.", lockoutSeconds));
+                        }
                     }
                 } catch (Exception ex) {
                     showError("Login Error", "An error occurred during login.");
@@ -117,40 +169,82 @@ public class App extends Application {
             });
         });
 
-        // Handle reset button
-        resetButton.setOnAction(e -> {
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-            confirm.setTitle("Reset Database");
-            confirm.setHeaderText("Are you sure?");
-            confirm.setContentText(
-                "This will delete ALL data including accounts and passwords.\n" +
-                "This action cannot be undone!");
-
-            confirm.showAndWait().ifPresent(response -> {
-                if (response == ButtonType.OK) {
-                    try {
-                        dbManager.wipeDatabase();
-                        showInfo("Database Reset", 
-                            "The database has been reset.\n" +
-                            "You can now create a new account.");
-                    } catch (SQLException ex) {
-                        showError("Reset Failed", 
-                            "Failed to reset database: " + ex.getMessage());
-                        ex.printStackTrace();
-                    }
-                }
-            });
-        });
-
-        Scene scene = new Scene(welcomeBox, 300, 200);
-        stage.setTitle("Password Manager");
+        Scene scene = new Scene(welcomeBox, 400, 450);
+        scene.getRoot().setStyle("""
+            -fx-background-color: white;
+            -fx-background-radius: 10;
+            """);
+        stage.setTitle(APP_TITLE);
         stage.setScene(scene);
         stage.show();
+    }
+
+    private Button createStyledButton(String text, boolean isDestructive) {
+        Button button = new Button(text);
+        button.setStyle("""
+            -fx-background-color: %s;
+            -fx-text-fill: %s;
+            -fx-font-size: 14px;
+            -fx-font-weight: bold;
+            -fx-padding: 12 30;
+            -fx-background-radius: 5;
+            -fx-border-radius: 5;
+            -fx-border-width: 1;
+            -fx-border-color: %s;
+            -fx-cursor: hand;
+            -fx-min-width: 200px;
+            """.formatted(
+                isDestructive ? "white" : "#0A84FF",
+                isDestructive ? "#FF3B30" : "white",
+                isDestructive ? "#FF3B30" : "#0A84FF"
+            ));
+
+        // Add hover effect
+        button.setOnMouseEntered(e -> button.setStyle("""
+            -fx-background-color: %s;
+            -fx-text-fill: %s;
+            -fx-font-size: 14px;
+            -fx-font-weight: bold;
+            -fx-padding: 12 30;
+            -fx-background-radius: 5;
+            -fx-border-radius: 5;
+            -fx-border-width: 1;
+            -fx-border-color: %s;
+            -fx-cursor: hand;
+            -fx-min-width: 200px;
+            -fx-opacity: 0.9;
+            """.formatted(
+                isDestructive ? "#FFF5F5" : "#0070E0",
+                isDestructive ? "#FF3B30" : "white",
+                isDestructive ? "#FF3B30" : "#0070E0"
+            )));
+
+        // Reset style on mouse exit
+        button.setOnMouseExited(e -> button.setStyle("""
+            -fx-background-color: %s;
+            -fx-text-fill: %s;
+            -fx-font-size: 14px;
+            -fx-font-weight: bold;
+            -fx-padding: 12 30;
+            -fx-background-radius: 5;
+            -fx-border-radius: 5;
+            -fx-border-width: 1;
+            -fx-border-color: %s;
+            -fx-cursor: hand;
+            -fx-min-width: 200px;
+            """.formatted(
+                isDestructive ? "white" : "#0A84FF",
+                isDestructive ? "#FF3B30" : "white",
+                isDestructive ? "#FF3B30" : "#0A84FF"
+            )));
+
+        return button;
     }
 
     private void showMainWindow(Stage stage) {
         try {
             MainWindow mainWindow = new MainWindow(dbManager, stage);
+            stage.setTitle(APP_TITLE);
             mainWindow.show();
         } catch (Exception e) {
             showError("Error", "Failed to open main window.");

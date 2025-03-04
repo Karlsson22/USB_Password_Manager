@@ -19,10 +19,8 @@ public class SecurityKeyManager {
     private static final int ITERATIONS = 100000; // Increase PBKDF2 iterations
     
     public static void generateKeyFile(String masterPassword, String filePath) throws Exception {
-        // Generate a random key
-        KeyGenerator keyGen = KeyGenerator.getInstance(ALGORITHM);
-        keyGen.init(KEY_SIZE, new SecureRandom());
-        SecretKey key = keyGen.generateKey();
+        // Generate a random DEK
+        SecretKey dek = Encryptor.generateDEK();
         
         // Generate additional random data
         byte[] additionalData = new byte[ADDITIONAL_BYTES];
@@ -32,12 +30,15 @@ public class SecurityKeyManager {
         // Generate a strong salt
         String salt = PasswordHasher.generateSalt();
         
-        // Create an encryptor with increased iterations
-        Encryptor encryptor = new Encryptor(masterPassword, salt, ITERATIONS);
+        // Derive KEK from master password and salt
+        SecretKey kek = Encryptor.deriveKEK(masterPassword, salt);
         
-        // Encrypt both the key and additional data
-        String encryptedKey = encryptor.encrypt(Base64.getEncoder().encodeToString(key.getEncoded()));
+        // Create an encryptor with the DEK
+        Encryptor encryptor = new Encryptor(dek);
+        
+        // Encrypt both the additional data and the DEK
         String encryptedData = encryptor.encrypt(Base64.getEncoder().encodeToString(additionalData));
+        String encryptedDEK = Encryptor.encryptDEK(dek, kek);
         
         // Add some random positions for the real key
         int keyPosition = random.nextInt(ADDITIONAL_BYTES);
@@ -47,12 +48,12 @@ public class SecurityKeyManager {
             StringBuilder fileContent = new StringBuilder();
             fileContent.append(salt).append("\n");
             fileContent.append(keyPosition).append("\n");
-            fileContent.append(encryptedKey).append("\n");
+            fileContent.append(encryptedDEK).append("\n");
             fileContent.append(encryptedData).append("\n");
             
             // Add a verification hash
             String verificationHash = PasswordHasher.hashPassword(
-                encryptedKey + encryptedData, 
+                encryptedDEK + encryptedData, 
                 salt
             );
             fileContent.append(verificationHash);
@@ -75,26 +76,30 @@ public class SecurityKeyManager {
             
             String salt = fileContent[0];
             String keyPosition = fileContent[1];
-            String encryptedKey = fileContent[2];
+            String encryptedDEK = fileContent[2];
             String encryptedData = fileContent[3];
             String storedHash = fileContent[4];
             
             // Verify the file hasn't been tampered with
             String calculatedHash = PasswordHasher.hashPassword(
-                encryptedKey + encryptedData, 
+                encryptedDEK + encryptedData, 
                 salt
             );
             if (!calculatedHash.equals(storedHash)) {
                 return false;
             }
             
-            // Try to decrypt with increased iterations
-            Encryptor encryptor = new Encryptor(masterPassword, salt, ITERATIONS);
-            String decryptedKey = encryptor.decrypt(encryptedKey);
+            // Try to decrypt the DEK
+            SecretKey kek = Encryptor.deriveKEK(masterPassword, salt);
+            SecretKey dek = Encryptor.decryptDEK(encryptedDEK, kek);
+            
+            // Create an encryptor with the decrypted DEK
+            Encryptor encryptor = new Encryptor(dek);
+            
+            // Try to decrypt the additional data
             String decryptedData = encryptor.decrypt(encryptedData);
             
-            // Verify both parts can be decoded as Base64
-            Base64.getDecoder().decode(decryptedKey);
+            // Verify the decrypted data can be decoded as Base64
             Base64.getDecoder().decode(decryptedData);
             
             return true;
