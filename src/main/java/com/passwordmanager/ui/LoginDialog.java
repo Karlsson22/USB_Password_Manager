@@ -2,6 +2,7 @@ package com.passwordmanager.ui;
 
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.geometry.Insets;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
@@ -11,6 +12,7 @@ import java.io.File;
 
 public class LoginDialog extends Dialog<LoginResult> {
     private PasswordField passwordField;
+    private TextField visiblePasswordField;
     private TextField keyFilePathField;
     private Button browseButton;
 
@@ -21,8 +23,25 @@ public class LoginDialog extends Dialog<LoginResult> {
 
         // Create the form fields
         passwordField = new PasswordField();
+        visiblePasswordField = new TextField();
         keyFilePathField = new TextField();
         browseButton = new Button("Browse");
+
+        // Create password toggle
+        CheckBox showPasswordCheckBox = new CheckBox("Show Password");
+        
+        // Set up password visibility toggle
+        visiblePasswordField.setManaged(false);
+        visiblePasswordField.setVisible(false);
+        showPasswordCheckBox.setOnAction(e -> {
+            passwordField.setManaged(!showPasswordCheckBox.isSelected());
+            passwordField.setVisible(!showPasswordCheckBox.isSelected());
+            visiblePasswordField.setManaged(showPasswordCheckBox.isSelected());
+            visiblePasswordField.setVisible(showPasswordCheckBox.isSelected());
+        });
+
+        // Bind password fields bidirectionally
+        passwordField.textProperty().bindBidirectional(visiblePasswordField.textProperty());
 
         // Set up the file chooser
         browseButton.setOnAction(e -> {
@@ -44,7 +63,11 @@ public class LoginDialog extends Dialog<LoginResult> {
         grid.setPadding(new Insets(20));
 
         grid.add(new Label("Master Password:"), 0, 0);
-        grid.add(passwordField, 1, 0);
+        HBox passwordBox = new HBox(10);
+        passwordBox.getChildren().addAll(passwordField, visiblePasswordField);
+        grid.add(passwordBox, 1, 0);
+        grid.add(showPasswordCheckBox, 2, 0);
+        
         grid.add(new Label("Key File:"), 0, 1);
         grid.add(keyFilePathField, 1, 1);
         grid.add(browseButton, 2, 1);
@@ -61,6 +84,7 @@ public class LoginDialog extends Dialog<LoginResult> {
 
         // Add validation listeners
         passwordField.textProperty().addListener((obs, oldVal, newVal) -> validateForm(loginButton));
+        visiblePasswordField.textProperty().addListener((obs, oldVal, newVal) -> validateForm(loginButton));
         keyFilePathField.textProperty().addListener((obs, oldVal, newVal) -> validateForm(loginButton));
 
         // Set the result converter

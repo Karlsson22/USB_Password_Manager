@@ -10,6 +10,8 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import com.passwordmanager.model.PasswordEntry;
 import com.passwordmanager.database.DatabaseManager;
+import com.passwordmanager.security.InputValidator;
+import com.passwordmanager.security.InputValidator.ValidationException;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -151,7 +153,20 @@ public class PasswordEntryController {
         alert.showAndWait();
     }
 
-    public PasswordEntry getEntry() {
-        return entry;
+    public PasswordEntry getEntry() throws ValidationException {
+        handleSave();
+        if (entry != null) {
+            // Validate all fields
+            InputValidator.validatePasswordEntry(
+                entry.getTitle(),
+                entry.getUsername(),
+                entry.getPassword(),
+                entry.getUrl(),
+                entry.getNotes(),
+                entry.getCategory()
+            );
+            return entry;
+        }
+        throw new ValidationException("No entry data available");
     }
 } 
