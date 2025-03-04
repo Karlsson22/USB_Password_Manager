@@ -200,12 +200,12 @@ public class DatabaseManager {
             
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
                 pstmt.setInt(1, currentUserId);
-                pstmt.setString(2, entry.getTitle());
+                pstmt.setString(2, encryptor.encrypt(entry.getTitle()));
                 pstmt.setString(3, encryptor.encrypt(entry.getUsername()));
                 pstmt.setString(4, encryptor.encrypt(entry.getPassword()));
                 pstmt.setString(5, encryptor.encrypt(entry.getUrl()));
                 pstmt.setString(6, encryptor.encrypt(entry.getNotes()));
-                pstmt.setString(7, entry.getCategory());
+                pstmt.setString(7, encryptor.encrypt(entry.getCategory()));
                 pstmt.executeUpdate();
             }
         } catch (Exception e) {
@@ -229,7 +229,7 @@ public class DatabaseManager {
                 while (rs.next()) {
                     PasswordEntry entry = new PasswordEntry();
                     entry.setId(rs.getInt("id"));
-                    entry.setTitle(rs.getString("title"));
+                    entry.setTitle(encryptor.decrypt(rs.getString("title")));
                     
                     String encryptedUsername = rs.getString("username");
                     String encryptedPassword = rs.getString("password");
@@ -238,7 +238,7 @@ public class DatabaseManager {
                     entry.setPassword(encryptedPassword != null ? encryptor.decrypt(encryptedPassword) : "");
                     entry.setUrl(rs.getString("url") != null ? encryptor.decrypt(rs.getString("url")) : "");
                     entry.setNotes(rs.getString("notes") != null ? encryptor.decrypt(rs.getString("notes")) : "");
-                    entry.setCategory(rs.getString("category"));
+                    entry.setCategory(rs.getString("category") != null ? encryptor.decrypt(rs.getString("category")) : "");
                     entry.setLastModified(rs.getLong("last_modified"));
                     passwords.add(entry);
                 }
@@ -259,12 +259,12 @@ public class DatabaseManager {
             """;
             
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-                pstmt.setString(1, entry.getTitle());
+                pstmt.setString(1, encryptor.encrypt(entry.getTitle()));
                 pstmt.setString(2, encryptor.encrypt(entry.getUsername()));
                 pstmt.setString(3, encryptor.encrypt(entry.getPassword()));
                 pstmt.setString(4, encryptor.encrypt(entry.getUrl()));
                 pstmt.setString(5, encryptor.encrypt(entry.getNotes()));
-                pstmt.setString(6, entry.getCategory());
+                pstmt.setString(6, encryptor.encrypt(entry.getCategory()));
                 pstmt.setLong(7, entry.getLastModified());
                 pstmt.setInt(8, entry.getId());
                 pstmt.executeUpdate();
@@ -386,9 +386,17 @@ public class DatabaseManager {
             ResultSet rs = pstmt.executeQuery();
             
             while (rs.next()) {
-                String category = rs.getString("category");
-                if (category != null && !category.isEmpty()) {
-                    categories.add(category);
+                String encryptedCategory = rs.getString("category");
+                if (encryptedCategory != null && !encryptedCategory.isEmpty()) {
+                    try {
+                        String decryptedCategory = encryptor.decrypt(encryptedCategory);
+                        if (decryptedCategory != null && !decryptedCategory.isEmpty()) {
+                            categories.add(decryptedCategory);
+                        }
+                    } catch (Exception e) {
+                        // If decryption fails, it might be an old unencrypted category
+                        categories.add(encryptedCategory);
+                    }
                 }
             }
         }
