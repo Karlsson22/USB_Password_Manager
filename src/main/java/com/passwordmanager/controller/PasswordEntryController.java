@@ -156,7 +156,6 @@ public class PasswordEntryController {
     public PasswordEntry getEntry() throws ValidationException {
         handleSave();
         if (entry != null) {
-            // Validate all fields
             InputValidator.validatePasswordEntry(
                 entry.getTitle(),
                 entry.getUsername(),

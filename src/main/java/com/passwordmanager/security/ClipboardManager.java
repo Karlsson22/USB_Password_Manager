@@ -7,29 +7,26 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class ClipboardManager {
-    private static final int DEFAULT_CLEAR_DELAY = 30; // seconds
+    private static final int DEFAULT_CLEAR_DELAY = 30;
     private static Timer clearTimer;
 
     public static void copyToClipboard(String text, boolean isSensitive) {
-        // Copy to clipboard
         Clipboard clipboard = Clipboard.getSystemClipboard();
         ClipboardContent content = new ClipboardContent();
         content.putString(text);
         clipboard.setContent(content);
 
-        // If sensitive data, schedule clearing
         if (isSensitive) {
             scheduleClearClipboard();
         }
     }
 
     private static void scheduleClearClipboard() {
-        // Cancel any existing timer
         if (clearTimer != null) {
             clearTimer.cancel();
         }
 
-        clearTimer = new Timer(true); // Create daemon timer
+        clearTimer = new Timer(true);
         clearTimer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -38,6 +35,6 @@ public class ClipboardManager {
                     clipboard.clear();
                 });
             }
-        }, DEFAULT_CLEAR_DELAY * 1000); // Convert seconds to milliseconds
+        }, DEFAULT_CLEAR_DELAY * 1000);     
     }
 } 

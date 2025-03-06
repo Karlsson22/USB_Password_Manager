@@ -64,7 +64,6 @@ public class App extends Application {
             """);
         titleLabel.setPadding(new Insets(0, 0, 20, 0));
 
-        // Create buttons with consistent styling
         Button loginButton = createStyledButton("Login", false);
         Button signUpButton = createStyledButton("Sign Up", false);
 
@@ -74,14 +73,12 @@ public class App extends Application {
 
         welcomeBox.getChildren().addAll(titleLabel, buttonContainer);
 
-        // Handle login button
         loginButton.setOnAction(e -> {
             LoginDialog loginDialog = new LoginDialog(stage);
             loginDialog.showAndWait().ifPresent(result -> {
-                String username = result.getMasterPassword(); // Using master password as username for tracking
+                String username = result.getMasterPassword(); 
                 LoginAttemptManager attemptManager = LoginAttemptManager.getInstance();
                 
-                // Check if the user is locked out
                 if (attemptManager.isLockedOut(username)) {
                     long remainingSeconds = attemptManager.getRemainingLockoutSeconds(username);
                     showError("Account Locked", 
@@ -93,13 +90,11 @@ public class App extends Application {
                     if (dbManager.verifyMasterPassword(result.getMasterPassword()) &&
                         SecurityKeyManager.verifyKeyFile(result.getMasterPassword(), result.getKeyFilePath())) {
                         
-                        // Reset attempts on successful login
                         attemptManager.resetAttempts(username);
                         
                         dbManager.initializeDatabase(result.getMasterPassword());
                         showMainWindow(stage);
                     } else {
-                        // Record failed attempt
                         attemptManager.recordFailedAttempt(username);
                         
                         int remainingAttempts = attemptManager.getRemainingAttempts(username);
@@ -119,12 +114,10 @@ public class App extends Application {
             });
         });
 
-        // Handle sign up button
         signUpButton.setOnAction(e -> {
             SignUpDialog signUpDialog = new SignUpDialog(stage);
             signUpDialog.showAndWait().ifPresent(result -> {
                 try {
-                    // First check if key file already exists
                     File keyFile = new File(result.getKeyFilePath());
                     if (keyFile.exists()) {
                         showError("Sign Up Failed", 
@@ -133,10 +126,8 @@ public class App extends Application {
                         return;
                     }
 
-                    // Try to create the user in database
                     if (dbManager.createUser(result.getMasterPassword())) {
                         try {
-                            // Generate the key file
                             SecurityKeyManager.generateKeyFile(
                                 result.getMasterPassword(), 
                                 result.getKeyFilePath()
@@ -148,7 +139,6 @@ public class App extends Application {
                                 result.getKeyFilePath() + "\n\n" +
                                 "IMPORTANT: Keep this file safe - you will need it to log in!");
                         } catch (Exception ex) {
-                            // If key file generation fails, delete the user
                             try {
                                 dbManager.deleteUser();
                             } catch (SQLException deleteEx) {
@@ -199,7 +189,6 @@ public class App extends Application {
                 isDestructive ? "#FF3B30" : "#0A84FF"
             ));
 
-        // Add hover effect
         button.setOnMouseEntered(e -> button.setStyle("""
             -fx-background-color: %s;
             -fx-text-fill: %s;
@@ -219,7 +208,6 @@ public class App extends Application {
                 isDestructive ? "#FF3B30" : "#0070E0"
             )));
 
-        // Reset style on mouse exit
         button.setOnMouseExited(e -> button.setStyle("""
             -fx-background-color: %s;
             -fx-text-fill: %s;

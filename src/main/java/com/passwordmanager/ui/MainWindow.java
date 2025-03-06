@@ -98,15 +98,12 @@ public class MainWindow {
         mainLayout.setStyle("-fx-background-color: white;");
         mainLayout.setPadding(new Insets(15));
 
-        // Create sidebar
         VBox sidebar = createSidebar();
         mainLayout.setLeft(sidebar);
 
-        // Create main content area
         VBox contentArea = createContentArea();
         mainLayout.setCenter(contentArea);
 
-        // Load passwords
         loadPasswords();
 
         Scene scene = new Scene(mainLayout, 1000, 600);
@@ -114,7 +111,6 @@ public class MainWindow {
         stage.setScene(scene);
         stage.show();
 
-        // Select "All" category by default
         categoryList.getSelectionModel().select(0);
     }
 
@@ -142,12 +138,10 @@ public class MainWindow {
             """);
         VBox.setVgrow(categoryList, Priority.ALWAYS);
 
-        // Initialize categories
         categories = FXCollections.observableArrayList();
         categories.add("All");
         categoryList.setItems(categories);
 
-        // Add category selection handler
         categoryList.getSelectionModel().selectedItemProperty().addListener(
             (observable, oldValue, newValue) -> {
                 if (newValue != null) {
@@ -168,7 +162,6 @@ public class MainWindow {
         logoutButton.setOnAction(e -> handleLogout());
         deleteAccountButton.setOnAction(e -> handleDeleteAccount());
 
-        // Add a separator before account management buttons
         Separator accountSeparator = new Separator();
         accountSeparator.setPadding(new Insets(5, 0, 5, 0));
 
@@ -191,14 +184,11 @@ public class MainWindow {
         VBox contentArea = new VBox(15);
         contentArea.setPadding(new Insets(0, 0, 0, 15));
 
-        // Create search box
         HBox searchBox = createSearchBox();
 
-        // Create password table
         passwordTable = createPasswordTable();
         VBox.setVgrow(passwordTable, Priority.ALWAYS);
 
-        // Create action buttons
         HBox actionButtons = new HBox(10);
         Button editButton = createStyledButton("Edit", false);
         Button deleteButton = createStyledButton("Delete", true);
@@ -243,7 +233,6 @@ public class MainWindow {
             -fx-font-size: 13px;
             """);
         
-        // Add search functionality
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
             filterTable(newValue);
         });
@@ -260,26 +249,22 @@ public class MainWindow {
             -fx-border-radius: 4;
             """);
 
-        // Create columns
         TableColumn<PasswordEntry, String> titleCol = new TableColumn<>("Title");
         TableColumn<PasswordEntry, String> usernameCol = new TableColumn<>("Username");
         TableColumn<PasswordEntry, String> urlCol = new TableColumn<>("URL");
         TableColumn<PasswordEntry, String> categoryCol = new TableColumn<>("Category");
 
-        // Style the columns
         String columnStyle = "-fx-alignment: CENTER-LEFT; -fx-padding: 10;";
         titleCol.setStyle(columnStyle);
         usernameCol.setStyle(columnStyle);
         urlCol.setStyle(columnStyle);
         categoryCol.setStyle(columnStyle);
 
-        // Set column widths
         titleCol.setPrefWidth(200);
         usernameCol.setPrefWidth(150);
         urlCol.setPrefWidth(200);
         categoryCol.setPrefWidth(150);
 
-        // Set cell value factories
         titleCol.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getTitle()));
         usernameCol.setCellValueFactory(cellData -> new SimpleStringProperty(
             cellData.getValue().getUsername() != null ? cellData.getValue().getUsername() : ""));
@@ -288,7 +273,6 @@ public class MainWindow {
         categoryCol.setCellValueFactory(cellData -> new SimpleStringProperty(
             cellData.getValue().getCategory() != null ? cellData.getValue().getCategory() : ""));
 
-        // Add double-click handler
         table.setRowFactory(tv -> {
             TableRow<PasswordEntry> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
@@ -310,7 +294,6 @@ public class MainWindow {
             passwordList.clear();
             passwordList.addAll(passwords);
             
-            // Update categories
             Set<String> uniqueCategories = new HashSet<>();
             uniqueCategories.add("All");
             for (PasswordEntry entry : passwords) {
@@ -321,9 +304,8 @@ public class MainWindow {
             
             categories.clear();
             categories.addAll(uniqueCategories);
-            categories.sort(null); // Sort categories alphabetically
+            categories.sort(null);
             
-            // Make sure "All" stays at the top
             if (categories.remove("All")) {
                 categories.add(0, "All");
             }
@@ -420,7 +402,6 @@ public class MainWindow {
     }
 
     private void handleDeletePassword() {
-        // Get selected password entry
         PasswordEntry selectedEntry = passwordTable.getSelectionModel().getSelectedItem();
         
         if (selectedEntry == null) {
@@ -432,12 +413,10 @@ public class MainWindow {
             return;
         }
 
-        // Show confirmation dialog
         Dialog<Boolean> confirmDialog = new Dialog<>();
         confirmDialog.setTitle("Confirm Deletion");
         confirmDialog.setHeaderText("Delete Password Entry");
         
-        // Create layout for confirmation
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
@@ -449,35 +428,27 @@ public class MainWindow {
         
         confirmDialog.getDialogPane().setContent(grid);
         
-        // Add buttons
         ButtonType deleteButton = new ButtonType("Delete", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
         confirmDialog.getDialogPane().getButtonTypes().addAll(deleteButton, cancelButton);
         
-        // Set result converter
         confirmDialog.setResultConverter(dialogButton -> dialogButton == deleteButton);
 
-        // Show dialog and handle result
         confirmDialog.showAndWait().ifPresent(confirmed -> {
             if (confirmed) {
                 try {
-                    // Store entry ID as the entry will be cleared
                     int entryId = selectedEntry.getId();
                     String entryTitle = selectedEntry.getTitle();
                     
-                    // Securely clear sensitive data
                     selectedEntry.setPassword(null);
                     selectedEntry.setUsername(null);
                     selectedEntry.setNotes(null);
                     
-                    // Delete from database
                     dbManager.deletePasswordEntry(entryId);
                     
-                    // Clear selection and refresh table
                     passwordTable.getSelectionModel().clearSelection();
                     loadPasswords();
                     
-                    // Log deletion (without sensitive data)
                     System.out.println("Password entry '" + entryTitle + "' deleted successfully");
                 } catch (SQLException e) {
                     showError("Error Deleting Password", "Failed to delete password entry: " + e.getMessage());
@@ -490,7 +461,6 @@ public class MainWindow {
     }
 
     private void handleEditButtonClick() {
-        // Get selected password entry
         PasswordEntry selectedEntry = passwordTable.getSelectionModel().getSelectedItem();
         
         if (selectedEntry == null) {
@@ -502,7 +472,6 @@ public class MainWindow {
             return;
         }
 
-        // Open the edit dialog
         handleEditPassword(selectedEntry);
     }
 
@@ -546,12 +515,10 @@ public class MainWindow {
             return;
         }
 
-        // Show confirmation dialog
         Dialog<Boolean> confirmDialog = new Dialog<>();
         confirmDialog.setTitle("Confirm Category Deletion");
         confirmDialog.setHeaderText("Delete Category and Associated Passwords");
         
-        // Create layout for confirmation
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
@@ -563,19 +530,15 @@ public class MainWindow {
         
         confirmDialog.getDialogPane().setContent(grid);
         
-        // Add buttons
         ButtonType deleteButton = new ButtonType("Delete Category", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
         confirmDialog.getDialogPane().getButtonTypes().addAll(deleteButton, cancelButton);
         
-        // Set result converter
         confirmDialog.setResultConverter(dialogButton -> dialogButton == deleteButton);
 
-        // Show dialog and handle result
         confirmDialog.showAndWait().ifPresent(confirmed -> {
             if (confirmed) {
                 try {
-                    // Get all passwords in this category
                     List<PasswordEntry> toDelete = new ArrayList<>();
                     for (PasswordEntry entry : passwordList) {
                         if (selectedCategory.equals(entry.getCategory())) {
@@ -584,9 +547,7 @@ public class MainWindow {
                     }
 
                     int deletedCount = 0;
-                    // Delete all passwords in the category
                     for (PasswordEntry entry : toDelete) {
-                        // Securely clear sensitive data
                         entry.setPassword(null);
                         entry.setUsername(null);
                         entry.setNotes(null);
@@ -595,11 +556,9 @@ public class MainWindow {
                         deletedCount++;
                     }
 
-                    // Clear selection and refresh views
                     categoryList.getSelectionModel().select("All");
                     loadPasswords();
                     
-                    // Show success message
                     Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
                     successAlert.setTitle("Category Deleted");
                     successAlert.setHeaderText(null);
@@ -608,7 +567,6 @@ public class MainWindow {
                         deletedCount + " password(s) were successfully deleted.");
                     successAlert.show();
                     
-                    // Log deletion (without sensitive data)
                     System.out.println("Category '" + selectedCategory + "' deleted with " + deletedCount + " entries");
                 } catch (SQLException e) {
                     showError("Error Deleting Category", 
@@ -630,8 +588,8 @@ public class MainWindow {
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
                 try {
-                    stage.close(); // Close the main window
-                    showLoginScreen(); // Show the login screen
+                    stage.close();
+                    showLoginScreen();
                 } catch (Exception ex) {
                     showError("Logout Failed", 
                         "Failed to log out: " + ex.getMessage());
@@ -668,7 +626,6 @@ public class MainWindow {
             new FileChooser.ExtensionFilter("Password Manager Backup", "*.pmbackup")
         );
         
-        // Set initial filename with timestamp
         String timestamp = LocalDateTime.now().format(
             DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
         );
@@ -677,16 +634,13 @@ public class MainWindow {
         File file = fileChooser.showSaveDialog(stage);
         if (file != null) {
             try {
-                // Get the master key from DatabaseManager
                 SecretKey masterKey = dbManager.getMasterKey();
                 
-                // Create backup manager
                 BackupManager backupManager = new BackupManager(
                     dbManager.getDatabasePath(),
                     masterKey
                 );
                 
-                // Create the backup
                 backupManager.createBackup(file.getPath());
                 
                 showInfo("Backup Created", 
@@ -702,7 +656,6 @@ public class MainWindow {
     }
 
     private void handleRestore() {
-        // Show warning dialog
         Alert confirm = new Alert(Alert.AlertType.WARNING);
         confirm.setTitle("Restore Database");
         confirm.setHeaderText("Are you sure you want to restore from backup?");
@@ -723,25 +676,20 @@ public class MainWindow {
                 File file = fileChooser.showOpenDialog(stage);
                 if (file != null) {
                     try {
-                        // Get the master key
                         SecretKey masterKey = dbManager.getMasterKey();
                         
-                        // Create backup manager
                         BackupManager backupManager = new BackupManager(
                             dbManager.getDatabasePath(),
                             masterKey
                         );
                         
-                        // Close current database connection
                         dbManager.closeConnection();
                         
-                        // Restore the backup
                         backupManager.restoreBackup(
                             file.getPath(),
                             dbManager.getDatabasePath()
                         );
                         
-                        // Show success message and restart application
                         showInfo("Restore Successful", 
                             "Database has been restored successfully!\n" +
                             "The application will now restart.");
@@ -759,10 +707,8 @@ public class MainWindow {
     }
 
     private void restartApplication() {
-        // Close the current window
         stage.close();
         
-        // Create and show a new login window
         try {
             Stage loginStage = new Stage();
             App app = new App();
@@ -783,14 +729,12 @@ public class MainWindow {
     }
 
     private void handleDeleteAccount() {
-        // Create a custom dialog
         Dialog<String> dialog = new Dialog<>();
         dialog.setTitle("Delete Account");
         dialog.setHeaderText("Are you sure you want to delete your account?\n" +
                            "This will permanently delete all your saved passwords!\n\n" +
                            "Type 'delete' to confirm:");
 
-        // Create the custom dialog layout
         DialogPane dialogPane = dialog.getDialogPane();
         TextField confirmField = new TextField();
         confirmField.setStyle("""
@@ -802,31 +746,25 @@ public class MainWindow {
             """);
         dialogPane.setContent(confirmField);
 
-        // Add buttons
         ButtonType deleteButtonType = new ButtonType("Delete Account", ButtonBar.ButtonData.OK_DONE);
         dialogPane.getButtonTypes().addAll(deleteButtonType, ButtonType.CANCEL);
 
-        // Style the dialog
         dialogPane.setStyle("""
             -fx-background-color: white;
             -fx-padding: 20;
             """);
 
-        // Get the delete button and style it
         Button deleteButton = (Button) dialogPane.lookupButton(deleteButtonType);
         deleteButton.setStyle(DANGER_BUTTON_STYLE);
         deleteButton.setOnMouseEntered(e -> deleteButton.setStyle(DANGER_BUTTON_HOVER_STYLE));
         deleteButton.setOnMouseExited(e -> deleteButton.setStyle(DANGER_BUTTON_STYLE));
 
-        // Disable the delete button until "delete" is typed
         deleteButton.setDisable(true);
 
-        // Enable delete button only when text is "delete"
         confirmField.textProperty().addListener((observable, oldValue, newValue) -> {
             deleteButton.setDisable(!newValue.equals("delete"));
         });
 
-        // Convert the result
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == deleteButtonType) {
                 return confirmField.getText();
@@ -834,13 +772,12 @@ public class MainWindow {
             return null;
         });
 
-        // Show dialog and handle result
         dialog.showAndWait().ifPresent(result -> {
             if (result.equals("delete")) {
                 try {
                     dbManager.deleteCurrentUser();
-                    stage.close(); // Close the main window
-                    showLoginScreen(); // Show the login screen again
+                    stage.close();
+                    showLoginScreen();
                 } catch (SQLException ex) {
                     showError("Delete Failed", 
                         "Failed to delete account: " + ex.getMessage());

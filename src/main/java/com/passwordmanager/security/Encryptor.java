@@ -17,7 +17,7 @@ public class Encryptor {
     private static final int GCM_TAG_LENGTH = 128;
     private static final int ITERATION_COUNT = 65536;
 
-    private volatile SecretKey dek; // Changed from final to volatile for secure wiping
+    private volatile SecretKey dek;
     private final SecureRandom secureRandom;
 
     public Encryptor(SecretKey dek) {
@@ -128,9 +128,6 @@ public class Encryptor {
         }
     }
 
-    /**
-     * Securely wipes all encryption keys from memory
-     */
     public void secureWipeKeys() {
         if (dek != null) {
             SecureWiper.wipeKey(dek);

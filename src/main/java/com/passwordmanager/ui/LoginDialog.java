@@ -21,16 +21,13 @@ public class LoginDialog extends Dialog<LoginResult> {
         setHeaderText("Enter your master password and select your key file");
         initOwner(owner);
 
-        // Create the form fields
         passwordField = new PasswordField();
         visiblePasswordField = new TextField();
         keyFilePathField = new TextField();
         browseButton = new Button("Browse");
 
-        // Create password toggle
         CheckBox showPasswordCheckBox = new CheckBox("Show Password");
         
-        // Set up password visibility toggle
         visiblePasswordField.setManaged(false);
         visiblePasswordField.setVisible(false);
         showPasswordCheckBox.setOnAction(e -> {
@@ -40,10 +37,8 @@ public class LoginDialog extends Dialog<LoginResult> {
             visiblePasswordField.setVisible(showPasswordCheckBox.isSelected());
         });
 
-        // Bind password fields bidirectionally
         passwordField.textProperty().bindBidirectional(visiblePasswordField.textProperty());
 
-        // Set up the file chooser
         browseButton.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Select Key File");
@@ -56,7 +51,6 @@ public class LoginDialog extends Dialog<LoginResult> {
             }
         });
 
-        // Create the layout
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
@@ -74,20 +68,16 @@ public class LoginDialog extends Dialog<LoginResult> {
 
         getDialogPane().setContent(grid);
 
-        // Add buttons
         ButtonType loginButtonType = new ButtonType("Login", ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(loginButtonType, ButtonType.CANCEL);
 
-        // Enable/Disable login button based on form validation
         Node loginButton = getDialogPane().lookupButton(loginButtonType);
         loginButton.setDisable(true);
 
-        // Add validation listeners
         passwordField.textProperty().addListener((obs, oldVal, newVal) -> validateForm(loginButton));
         visiblePasswordField.textProperty().addListener((obs, oldVal, newVal) -> validateForm(loginButton));
         keyFilePathField.textProperty().addListener((obs, oldVal, newVal) -> validateForm(loginButton));
 
-        // Set the result converter
         setResultConverter(dialogButton -> {
             if (dialogButton == loginButtonType) {
                 return new LoginResult(
