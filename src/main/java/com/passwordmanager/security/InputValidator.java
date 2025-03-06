@@ -3,7 +3,6 @@ package com.passwordmanager.security;
 import java.util.regex.Pattern;
 
 public class InputValidator {
-    // Regular expressions for validation
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._@-]{3,50}$");
     private static final Pattern TITLE_PATTERN = Pattern.compile("^[\\p{L}\\p{N}\\s._@#$%&*()-]{1,100}$");
     private static final Pattern CATEGORY_PATTERN = Pattern.compile("^[\\p{L}\\p{N}\\s._-]{1,50}$");
@@ -11,23 +10,19 @@ public class InputValidator {
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^.+$"); // Any non-empty string
     private static final Pattern NOTES_PATTERN = Pattern.compile("^[\\p{L}\\p{N}\\s\\p{P}]{0,1000}$");
     
-    // Sanitization methods
     public static String sanitizeInput(String input) {
         if (input == null) {
             return null;
         }
-        // Escape special SQL characters
-        return input.replace("'", "''")  // Escape single quotes
-                   .replace("\\", "\\\\")  // Escape backslashes
-                   .replace("\u0000", ""); // Remove null bytes
+        return input.replace("'", "''") 
+                   .replace("\\", "\\\\") 
+                   .replace("\u0000", "");
     }
     
-    // Validation methods - just check for non-null and non-empty
     public static boolean isValidInput(String input) {
         return input != null && !input.trim().isEmpty();
     }
     
-    // Validation methods
     public static boolean isValidUsername(String username) {
         return username != null && USERNAME_PATTERN.matcher(username).matches();
     }
@@ -56,14 +51,12 @@ public class InputValidator {
         return masterPassword != null && !masterPassword.trim().isEmpty();
     }
     
-    // Validation exception
     public static class ValidationException extends Exception {
         public ValidationException(String message) {
             super(message);
         }
     }
     
-    // Validate all fields of a password entry - just check required fields
     public static void validatePasswordEntry(String title, String username, String password, 
                                           String url, String notes, String category) 
             throws ValidationException {
@@ -76,6 +69,5 @@ public class InputValidator {
         if (!isValidInput(password)) {
             throw new ValidationException("Password is required");
         }
-        // URL, notes, and category are optional, no validation needed
     }
 } 

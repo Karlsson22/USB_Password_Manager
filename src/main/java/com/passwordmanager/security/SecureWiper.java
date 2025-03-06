@@ -25,12 +25,10 @@ public class SecureWiper {
         if (chars == null) return;
         
         for (int i = 0; i < WIPE_ITERATIONS; i++) {
-            // Overwrite with random data
             for (int j = 0; j < chars.length; j++) {
                 chars[j] = (char) SECURE_RANDOM.nextInt(Character.MAX_VALUE + 1);
             }
         }
-        // Final overwrite with zeros
         Arrays.fill(chars, '\u0000');
     }
     
@@ -62,7 +60,6 @@ public class SecureWiper {
     public static String wipeString(String string) {
         if (string == null) return null;
         
-        // Convert to char array and wipe it
         char[] chars = string.toCharArray();
         wipeCharArray(chars);
         
@@ -98,7 +95,7 @@ public class SecureWiper {
         if (buffer == null) return;
         
         try {
-            buffer.clear(); // Reset position to start
+            buffer.clear();
             int size = buffer.capacity();
             
             for (int i = 0; i < WIPE_ITERATIONS; i++) {
@@ -108,7 +105,6 @@ public class SecureWiper {
                 buffer.put(randomData);
             }
             
-            // Final overwrite with zeros
             buffer.clear();
             buffer.put(new byte[size]);
             
@@ -131,25 +127,21 @@ public class SecureWiper {
         try (FileOutputStream fos = new FileOutputStream(file);
              FileChannel channel = fos.getChannel()) {
             
-            ByteBuffer buffer = ByteBuffer.allocate(8192); // 8KB buffer
+            ByteBuffer buffer = ByteBuffer.allocate(8192);
             
             for (int i = 0; i < WIPE_ITERATIONS; i++) {
                 long position = 0;
                 while (position < length) {
                     buffer.clear();
-                    // Fill buffer with random data
                     SECURE_RANDOM.nextBytes(buffer.array());
                     
-                    // Write to file
                     while (buffer.hasRemaining() && position < length) {
                         position += channel.write(buffer);
                     }
                 }
-                // Force changes to disk
                 channel.force(true);
             }
             
-            // Final overwrite with zeros
             buffer.clear();
             Arrays.fill(buffer.array(), (byte) 0);
             long position = 0;
@@ -158,11 +150,9 @@ public class SecureWiper {
                 position += channel.write(buffer);
             }
             
-            // Force final changes to disk
             channel.force(true);
         }
         
-        // Finally delete the file
         if (!file.delete()) {
             throw new IOException("Failed to delete file after secure wipe: " + file.getPath());
         }
@@ -177,7 +167,6 @@ public class SecureWiper {
     public static void secureTempCleanup(File directory) throws IOException {
         if (!directory.exists()) return;
         
-        // First wipe all files in the directory
         File[] files = directory.listFiles();
         if (files != null) {
             for (File file : files) {
@@ -189,7 +178,6 @@ public class SecureWiper {
             }
         }
         
-        // Then delete the directory itself
         if (!directory.delete()) {
             throw new IOException("Failed to delete directory: " + directory.getPath());
         }

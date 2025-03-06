@@ -7,16 +7,14 @@ public class InputValidatorTest {
     
     @Test
     void testValidMasterPassword() {
-        // Test valid passwords (any non-empty string)
         assertTrue(InputValidator.isValidMasterPassword("simple"));
         assertTrue(InputValidator.isValidMasterPassword("123"));
         assertTrue(InputValidator.isValidMasterPassword("!@#"));
         assertTrue(InputValidator.isValidMasterPassword("any password is fine"));
         
-        // Test invalid cases
         assertFalse(InputValidator.isValidMasterPassword(null));
         assertFalse(InputValidator.isValidMasterPassword(""));
-        assertFalse(InputValidator.isValidMasterPassword("   ")); // Only whitespace
+        assertFalse(InputValidator.isValidMasterPassword("   ")); 
     }
 
     @Test
@@ -24,9 +22,9 @@ public class InputValidatorTest {
         assertTrue(InputValidator.isValidUsername("john.doe"));
         assertTrue(InputValidator.isValidUsername("user123"));
         assertTrue(InputValidator.isValidUsername("user@domain"));
-        assertFalse(InputValidator.isValidUsername("ab")); // Too short
-        assertFalse(InputValidator.isValidUsername("invalid username")); // Contains space
-        assertFalse(InputValidator.isValidUsername("user$name")); // Invalid character
+        assertFalse(InputValidator.isValidUsername("ab")); 
+        assertFalse(InputValidator.isValidUsername("invalid username")); 
+        assertFalse(InputValidator.isValidUsername("user$name")); 
     }
 
     @Test
@@ -34,16 +32,16 @@ public class InputValidatorTest {
         assertTrue(InputValidator.isValidTitle("My Bank Account"));
         assertTrue(InputValidator.isValidTitle("Gmail - Personal"));
         assertTrue(InputValidator.isValidTitle("Work VPN #2"));
-        assertFalse(InputValidator.isValidTitle("")); // Empty
-        assertFalse(InputValidator.isValidTitle("a".repeat(101))); // Too long
+        assertFalse(InputValidator.isValidTitle("")); 
+        assertFalse(InputValidator.isValidTitle("a".repeat(101))); 
     }
 
     @Test
     void testValidUrl() {
         assertTrue(InputValidator.isValidUrl("https://www.example.com"));
         assertTrue(InputValidator.isValidUrl("http://sub.domain.com/path?param=value"));
-        assertTrue(InputValidator.isValidUrl("")); // Empty URL is valid
-        assertTrue(InputValidator.isValidUrl(null)); // Null URL is valid
+        assertTrue(InputValidator.isValidUrl("")); 
+        assertTrue(InputValidator.isValidUrl(null)); 
         assertFalse(InputValidator.isValidUrl("not-a-url"));
         assertFalse(InputValidator.isValidUrl("ftp://invalid-scheme.com"));
     }
@@ -52,18 +50,18 @@ public class InputValidatorTest {
     void testValidCategory() {
         assertTrue(InputValidator.isValidCategory("Banking"));
         assertTrue(InputValidator.isValidCategory("Work-Related"));
-        assertTrue(InputValidator.isValidCategory("")); // Empty category is valid
-        assertTrue(InputValidator.isValidCategory(null)); // Null category is valid
+        assertTrue(InputValidator.isValidCategory("")); 
+        assertTrue(InputValidator.isValidCategory(null)); 
         assertFalse(InputValidator.isValidCategory("Invalid@Category"));
-        assertFalse(InputValidator.isValidCategory("a".repeat(51))); // Too long
+        assertFalse(InputValidator.isValidCategory("a".repeat(51))); 
     }
 
     @Test
     void testValidNotes() {
         assertTrue(InputValidator.isValidNotes("Some notes about this account."));
-        assertTrue(InputValidator.isValidNotes("")); // Empty notes are valid
-        assertTrue(InputValidator.isValidNotes(null)); // Null notes are valid
-        assertFalse(InputValidator.isValidNotes("a".repeat(1001))); // Too long
+        assertTrue(InputValidator.isValidNotes("")); 
+        assertTrue(InputValidator.isValidNotes(null)); 
+        assertFalse(InputValidator.isValidNotes("a".repeat(1001))); 
     }
 
     @Test
@@ -86,7 +84,7 @@ public class InputValidatorTest {
         ));
 
         assertThrows(InputValidator.ValidationException.class, () -> InputValidator.validatePasswordEntry(
-            "", // Invalid title
+            "", 
             "valid.username",
             "ValidPass123!",
             "https://example.com",

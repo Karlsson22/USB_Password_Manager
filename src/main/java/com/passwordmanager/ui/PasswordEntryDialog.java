@@ -22,7 +22,6 @@ public class PasswordEntryDialog extends Dialog<PasswordEntry> {
         setHeaderText("Enter password details");
         initOwner(owner);
 
-        // Create the form fields
         titleField = new TextField();
         usernameField = new TextField();
         passwordField = new PasswordField();
@@ -31,11 +30,9 @@ public class PasswordEntryDialog extends Dialog<PasswordEntry> {
         categoryField = new TextField();
         generateButton = new Button("Generate");
 
-        // Password field with generate button
         HBox passwordBox = new HBox(10);
         passwordBox.getChildren().addAll(passwordField, generateButton);
 
-        // Create the layout
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
@@ -58,17 +55,14 @@ public class PasswordEntryDialog extends Dialog<PasswordEntry> {
 
         getDialogPane().setContent(grid);
 
-        // Add buttons
         ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
 
-        // Enable/Disable save button depending on title field
         Node saveButton = getDialogPane().lookupButton(saveButtonType);
         saveButton.setDisable(true);
         titleField.textProperty().addListener((observable, oldValue, newValue) -> 
             saveButton.setDisable(newValue.trim().isEmpty()));
 
-        // Convert the result to PasswordEntry when save is clicked
         setResultConverter(dialogButton -> {
             if (dialogButton == saveButtonType) {
                 return new PasswordEntry(
@@ -83,12 +77,10 @@ public class PasswordEntryDialog extends Dialog<PasswordEntry> {
             return null;
         });
 
-        // Add password generation functionality
         generateButton.setOnAction(e -> passwordField.setText(generatePassword()));
     }
 
     private String generatePassword() {
-        // Simple password generator - you might want to make this more sophisticated
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
         StringBuilder password = new StringBuilder();
         for (int i = 0; i < 16; i++) {

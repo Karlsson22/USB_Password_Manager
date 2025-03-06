@@ -97,9 +97,6 @@ public class PasswordEntry {
         this.lastModified = System.currentTimeMillis();
     }
 
-    /**
-     * Securely wipes all sensitive data from memory
-     */
     public void secureClear() {
         SecureWiper.wipeString(username);
         SecureWiper.wipeString(password);
@@ -108,7 +105,6 @@ public class PasswordEntry {
         password = null;
         notes = null;
         
-        // Less sensitive data can be cleared normally
         title = null;
         url = null;
         category = null;
@@ -117,7 +113,7 @@ public class PasswordEntry {
     @Override
     protected void finalize() throws Throwable {
         try {
-            secureClear(); // Ensure sensitive data is wiped when object is garbage collected
+            secureClear();
         } finally {
             super.finalize();
         }

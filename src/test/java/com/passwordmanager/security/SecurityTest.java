@@ -5,6 +5,7 @@ import com.passwordmanager.model.PasswordEntry;
 import org.junit.jupiter.api.*;
 import java.sql.*;
 import static org.junit.jupiter.api.Assertions.*;
+import com.passwordmanager.security.InputValidator.ValidationException;
 
 public class SecurityTest {
     private DatabaseManager dbManager;
@@ -13,7 +14,6 @@ public class SecurityTest {
 
     @BeforeEach
     void setUp() {
-        // Delete the test database file if it exists
         java.io.File dbFile = new java.io.File("passwords.db");
         if (dbFile.exists()) {
             dbFile.delete();
@@ -26,7 +26,6 @@ public class SecurityTest {
         if (dbManager != null) {
             dbManager.closeConnection();
         }
-        // Clean up the test database
         java.io.File dbFile = new java.io.File("passwords.db");
         if (dbFile.exists()) {
             dbFile.delete();
@@ -34,17 +33,13 @@ public class SecurityTest {
     }
 
     @Test
-    void testEnvelopeEncryption() throws SQLException {
-        // Test user creation with envelope encryption
+    void testEnvelopeEncryption() throws SQLException, ValidationException {
         assertTrue(dbManager.createUser(TEST_MASTER_PASSWORD), "User creation should succeed");
         
-        // Verify that the master password works
         assertTrue(dbManager.verifyMasterPassword(TEST_MASTER_PASSWORD), "Master password verification should succeed");
         
-        // Initialize the database with the master password
         dbManager.initializeDatabase(TEST_MASTER_PASSWORD);
         
-        // Add an encrypted password entry
         PasswordEntry entry = new PasswordEntry();
         entry.setTitle("Test Account");
         entry.setUsername("testuser");
@@ -55,7 +50,6 @@ public class SecurityTest {
         
         dbManager.addPasswordEntry(entry);
         
-        // Retrieve and verify the encrypted entry
         var entries = dbManager.getAllPasswords();
         assertFalse(entries.isEmpty(), "Should have at least one password entry");
         
@@ -66,32 +60,24 @@ public class SecurityTest {
     }
 
     @Test
-    void testSaltRotation() throws SQLException {
-        // Create a user
+    void testSaltRotation() throws SQLException, ValidationException {
         assertTrue(dbManager.createUser(TEST_MASTER_PASSWORD), "User creation should succeed");
         
-        // Initialize database first
         dbManager.initializeDatabase(TEST_MASTER_PASSWORD);
         
-        // Get initial salt
         String initialSalt = getCurrentSalt();
         assertNotNull(initialSalt, "Initial salt should not be null");
         
-        // Force salt rotation by directly updating the salt creation timestamp
         forceOldSaltTimestamp();
         
-        // Re-initialize database to trigger salt rotation
         dbManager.initializeDatabase(TEST_MASTER_PASSWORD);
         
-        // Get new salt
         String newSalt = getCurrentSalt();
         assertNotNull(newSalt, "New salt should not be null");
         assertNotEquals(initialSalt, newSalt, "Salt should have been rotated");
         
-        // Verify old salt is in history
         assertTrue(isSaltInHistory(initialSalt), "Old salt should be in history");
         
-        // Verify authentication still works
         assertTrue(dbManager.verifyMasterPassword(TEST_MASTER_PASSWORD), 
             "Authentication should still work after salt rotation");
     }

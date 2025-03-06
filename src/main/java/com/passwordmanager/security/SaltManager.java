@@ -9,8 +9,8 @@ import java.util.List;
 import javax.crypto.SecretKey;
 
 public class SaltManager {
-    private static final int SALT_LENGTH = 32; // 256 bits
-    private static final long SALT_ROTATION_PERIOD = 30 * 24 * 60 * 60 * 1000L; // 30 days in milliseconds
+    private static final int SALT_LENGTH = 32;
+    private static final long SALT_ROTATION_PERIOD = 30 * 24 * 60 * 60 * 1000L;
     private final Connection connection;
     private final int userId;
     private final SecureRandom secureRandom;
@@ -47,7 +47,7 @@ public class SaltManager {
                 return System.currentTimeMillis() - lastRotation >= SALT_ROTATION_PERIOD;
             }
         }
-        return true; // No salt history found, should rotate
+        return true;
     }
 
     private String getCurrentSalt() throws SQLException {
@@ -65,7 +65,6 @@ public class SaltManager {
     private void updateSalt(String oldSalt, String newSalt) throws SQLException {
         connection.setAutoCommit(false);
         try {
-            // Get the current encrypted DEK
             String sql = "SELECT encrypted_dek FROM users WHERE id = ?";
             String encryptedDEK;
             try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -77,15 +76,12 @@ public class SaltManager {
                 encryptedDEK = rs.getString("encrypted_dek");
             }
 
-            // Decrypt the DEK using the old salt
             SecretKey oldKEK = Encryptor.deriveKEK(masterPassword, oldSalt);
             SecretKey dek = Encryptor.decryptDEK(encryptedDEK, oldKEK);
 
-            // Re-encrypt the DEK using the new salt
             SecretKey newKEK = Encryptor.deriveKEK(masterPassword, newSalt);
             String newEncryptedDEK = Encryptor.encryptDEK(dek, newKEK);
 
-            // Add old salt to history
             String historySql = """
                 INSERT INTO salt_history (user_id, salt, created_at, retired_at)
                 VALUES (?, ?, (SELECT created_at FROM users WHERE id = ?), CURRENT_TIMESTAMP)
@@ -97,10 +93,8 @@ public class SaltManager {
                 pstmt.executeUpdate();
             }
 
-            // Calculate new password hash with new salt
             String newPasswordHash = PasswordHasher.hashPassword(masterPassword, newSalt);
 
-            // Update current salt, password hash, and encrypted DEK
             String updateSql = "UPDATE users SET current_salt = ?, master_password_hash = ?, encrypted_dek = ? WHERE id = ?";
             try (PreparedStatement pstmt = connection.prepareStatement(updateSql)) {
                 pstmt.setString(1, newSalt);
@@ -122,11 +116,9 @@ public class SaltManager {
     public List<String> getActiveSalts() throws SQLException {
         List<String> salts = new ArrayList<>();
         
-        // Get current salt
         String currentSalt = getCurrentSalt();
         salts.add(currentSalt);
         
-        // Get recent historical salts (within transition period)
         String sql = """
             SELECT salt FROM salt_history 
             WHERE user_id = ? AND retired_at >= ? 

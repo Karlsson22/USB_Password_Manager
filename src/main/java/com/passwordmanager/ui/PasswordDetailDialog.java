@@ -29,7 +29,6 @@ public class PasswordDetailDialog extends Dialog<PasswordEntry> {
         setHeaderText("View or Edit Password Entry");
         initOwner(owner);
 
-        // Create the form fields
         titleField = new TextField(entry.getTitle());
         usernameField = new TextField(entry.getUsername());
         passwordField = new PasswordField();
@@ -41,12 +40,10 @@ public class PasswordDetailDialog extends Dialog<PasswordEntry> {
         categoryField = new TextField(entry.getCategory());
         showPasswordCheckBox = new CheckBox("Show Password");
 
-        // Create copy buttons
         Button copyUsernameButton = new Button("Copy");
         Button copyPasswordButton = new Button("Copy");
         Button copyUrlButton = new Button("Copy");
 
-        // Password visibility toggle
         visiblePasswordField.setManaged(false);
         visiblePasswordField.setVisible(false);
         showPasswordCheckBox.setOnAction(e -> {
@@ -56,16 +53,13 @@ public class PasswordDetailDialog extends Dialog<PasswordEntry> {
             visiblePasswordField.setVisible(showPasswordCheckBox.isSelected());
         });
 
-        // Bind password fields
         passwordField.textProperty().bindBidirectional(visiblePasswordField.textProperty());
 
-        // Create the layout
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
         grid.setPadding(new Insets(20));
 
-        // Add fields to grid
         int row = 0;
         grid.add(new Label("Title:*"), 0, row);
         grid.add(titleField, 1, row);
@@ -97,38 +91,30 @@ public class PasswordDetailDialog extends Dialog<PasswordEntry> {
         grid.add(notesArea, 1, row);
         notesArea.setPrefRowCount(3);
 
-        // Set up copy buttons
         setupCopyButtons(copyUsernameButton, copyPasswordButton, copyUrlButton);
 
         getDialogPane().setContent(grid);
 
-        // Add buttons
         ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
 
-        // Enable save button since we're editing an existing entry
         Node saveButton = getDialogPane().lookupButton(saveButtonType);
         saveButton.setDisable(false);
         
-        // Only disable save button if title becomes empty
         titleField.textProperty().addListener((observable, oldValue, newValue) -> 
             saveButton.setDisable(newValue.trim().isEmpty()));
 
-        // Convert the result to PasswordEntry when save is clicked
         setResultConverter(dialogButton -> {
             if (dialogButton == saveButtonType) {
-                // Show confirmation dialog
                 Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
                 confirmDialog.setTitle("Confirm Changes");
                 confirmDialog.setHeaderText("Save Changes?");
                 confirmDialog.setContentText("Are you sure you want to save the changes to this password entry?");
                 
-                // Add custom buttons
                 ButtonType yesButton = new ButtonType("Yes, Save", ButtonBar.ButtonData.YES);
                 ButtonType noButton = new ButtonType("No, Cancel", ButtonBar.ButtonData.NO);
                 confirmDialog.getButtonTypes().setAll(yesButton, noButton);
 
-                // Show dialog and wait for response
                 if (confirmDialog.showAndWait().orElse(noButton) == yesButton) {
                     entry.setTitle(titleField.getText());
                     entry.setUsername(usernameField.getText());
@@ -169,7 +155,6 @@ public class PasswordDetailDialog extends Dialog<PasswordEntry> {
         alert.setContentText(message);
         alert.show();
         
-        // Auto-close the notification after 2 seconds
         Timer timer = new Timer(true);
         timer.schedule(new TimerTask() {
             @Override

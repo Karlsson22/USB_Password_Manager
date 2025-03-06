@@ -25,13 +25,12 @@ public class DatabaseManager {
     private static final String DB_NAME = "passwords.db";
     private Connection connection;
     private Encryptor encryptor;
-    private int currentUserId = -1;  // Track the current logged-in user
+    private int currentUserId = -1;
 
     public DatabaseManager() {
         try {
             boolean isNewDatabase = !new File(DB_NAME).exists();
             
-            // Initialize database connection in constructor
             File dbFile = new File(DB_NAME);
             System.out.println("Database location: " + dbFile.getAbsolutePath());
             connection = DriverManager.getConnection("jdbc:sqlite:" + DB_NAME);
@@ -59,17 +58,13 @@ public class DatabaseManager {
                     String encryptedDEK = rs.getString("encrypted_dek");
                     
                     try {
-                        // Derive KEK from master password and salt
                         SecretKey kek = Encryptor.deriveKEK(masterPassword, salt);
                         
-                        // Decrypt the DEK using the KEK
                         SecretKey dek = Encryptor.decryptDEK(encryptedDEK, kek);
                         
-                        // Initialize the encryptor with the DEK
                         currentUserId = userId;
                         encryptor = new Encryptor(dek);
                         
-                        // Initialize salt manager and check for rotation
                         SaltManager saltManager = new SaltManager(connection, userId, masterPassword);
                         saltManager.rotateSaltIfNeeded();
                         
@@ -77,7 +72,6 @@ public class DatabaseManager {
                         userFound = true;
                         break;
                     } catch (Exception e) {
-                        // If decryption fails, try the next user (in case of multiple users)
                         continue;
                     }
                 }
@@ -96,12 +90,10 @@ public class DatabaseManager {
 
     private void testConnection() throws SQLException {
         try (Statement statement = connection.createStatement()) {
-            // Try to execute a simple query
             ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM users");
             System.out.println("Database connection successful!");
             System.out.println("Number of users: " + rs.getInt(1));
             
-            // Test if tables were created
             ResultSet tables = connection.getMetaData().getTables(null, null, "%", null);
             System.out.println("\nAvailable tables:");
             while (tables.next()) {
@@ -155,11 +147,9 @@ public class DatabaseManager {
         }
     }
 
-    // Method to close the connection
     public void closeConnection() {
         try {
             if (connection != null && !connection.isClosed()) {
-                // Secure cleanup of any temporary files
                 cleanupTempFiles();
                 
                 connection.close();
@@ -171,7 +161,6 @@ public class DatabaseManager {
     }
 
     private void cleanupTempFiles() throws IOException {
-        // Get the system temp directory
         String tempDir = System.getProperty("java.io.tmpdir");
         File tempFolder = new File(tempDir, "passwordmanager_temp");
         
@@ -181,29 +170,22 @@ public class DatabaseManager {
     }
 
     public boolean createUser(String masterPassword) throws ValidationException {
-        // Validate master password
         if (!InputValidator.isValidMasterPassword(masterPassword)) {
             throw new ValidationException("Invalid master password format. Password must be at least 12 characters long and contain uppercase, lowercase, numbers, and special characters.");
         }
 
         try {
-            // Sanitize input
             masterPassword = InputValidator.sanitizeInput(masterPassword);
             
-            // Generate initial salt
             SaltManager saltManager = new SaltManager(connection, -1, masterPassword);
             String salt = saltManager.generateNewSalt();
             
-            // Generate DEK
             SecretKey dek = Encryptor.generateDEK();
             
-            // Derive KEK from master password and salt
             SecretKey kek = Encryptor.deriveKEK(masterPassword, salt);
             
-            // Encrypt DEK with KEK
             String encryptedDEK = Encryptor.encryptDEK(dek, kek);
             
-            // Insert new user with encrypted DEK
             String sql = "INSERT INTO users (master_password_hash, current_salt, encrypted_dek) VALUES (?, ?, ?)";
             try (PreparedStatement pstmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 String passwordHash = PasswordHasher.hashPassword(masterPassword, salt);
@@ -214,11 +196,9 @@ public class DatabaseManager {
                 int result = pstmt.executeUpdate();
                 
                 if (result > 0) {
-                    // Get the generated user ID
                     try (ResultSet rs = pstmt.getGeneratedKeys()) {
                         if (rs.next()) {
                             int userId = rs.getInt(1);
-                            // Initialize salt history
                             String historySql = "INSERT INTO salt_history (user_id, salt, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)";
                             try (PreparedStatement historyStmt = connection.prepareStatement(historySql)) {
                                 historyStmt.setInt(1, userId);
@@ -250,16 +230,13 @@ public class DatabaseManager {
                     String salt = rs.getString("current_salt");
                     String encryptedDEK = rs.getString("encrypted_dek");
 
-                    // First verify the password hash
                     String calculatedHash = PasswordHasher.hashPassword(masterPassword, salt);
                     if (storedHash.equals(calculatedHash)) {
                         try {
-                            // Then try to decrypt the DEK as an additional verification
                             SecretKey kek = Encryptor.deriveKEK(masterPassword, salt);
                             Encryptor.decryptDEK(encryptedDEK, kek);
                             return true;
                         } catch (Exception e) {
-                            // If DEK decryption fails, the password is wrong
                             continue;
                         }
                     }
@@ -281,7 +258,6 @@ public class DatabaseManager {
             throw new SQLException("Not logged in. Please log in first.");
         }
 
-        // Validate all fields
         InputValidator.validatePasswordEntry(
             entry.getTitle(),
             entry.getUsername(),
@@ -291,7 +267,6 @@ public class DatabaseManager {
             entry.getCategory()
         );
 
-        // Sanitize all inputs
         entry.setTitle(InputValidator.sanitizeInput(entry.getTitle()));
         entry.setUsername(InputValidator.sanitizeInput(entry.getUsername()));
         entry.setPassword(InputValidator.sanitizeInput(entry.getPassword()));
@@ -361,7 +336,6 @@ public class DatabaseManager {
             throw new SQLException("Not logged in. Please log in first.");
         }
 
-        // Validate all fields
         InputValidator.validatePasswordEntry(
             entry.getTitle(),
             entry.getUsername(),
@@ -371,7 +345,6 @@ public class DatabaseManager {
             entry.getCategory()
         );
 
-        // Sanitize all inputs
         entry.setTitle(InputValidator.sanitizeInput(entry.getTitle()));
         entry.setUsername(InputValidator.sanitizeInput(entry.getUsername()));
         entry.setPassword(InputValidator.sanitizeInput(entry.getPassword()));
@@ -396,7 +369,7 @@ public class DatabaseManager {
                 pstmt.setString(6, encryptor.encrypt(entry.getCategory()));
                 pstmt.setLong(7, entry.getLastModified());
                 pstmt.setInt(8, entry.getId());
-                pstmt.setInt(9, currentUserId); // Add user_id check for additional security
+                pstmt.setInt(9, currentUserId);
                 pstmt.executeUpdate();
             }
         } catch (Exception e) {
@@ -405,7 +378,6 @@ public class DatabaseManager {
     }
 
     public void deletePasswordEntry(int entryId) throws SQLException {
-        // First get the entry to securely wipe its data
         PasswordEntry entry = getPasswordEntry(entryId);
         if (entry != null) {
             entry.secureClear();
@@ -421,7 +393,6 @@ public class DatabaseManager {
 
     private void migrateUnencryptedData() {
         try {
-            // Get all passwords
             String sql = "SELECT * FROM passwords";
             List<PasswordEntry> entries = new ArrayList<>();
             
@@ -442,7 +413,6 @@ public class DatabaseManager {
                 }
             }
 
-            // Update each entry with encrypted data
             String updateSql = """
                 UPDATE passwords 
                 SET username = ?, password = ?, url = ?, notes = ?
@@ -469,7 +439,6 @@ public class DatabaseManager {
 
     public void deleteUser() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
-            // Delete all data when deleting user
             stmt.execute("DELETE FROM passwords");
             stmt.execute("DELETE FROM users");
             System.out.println("User and all associated data deleted.");
@@ -477,7 +446,6 @@ public class DatabaseManager {
     }
 
     public void wipeDatabase() throws SQLException {
-        // First securely wipe all password entries
         String sql = "SELECT id FROM passwords";
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -486,20 +454,17 @@ public class DatabaseManager {
             }
         }
 
-        // Then delete all data
         try (Statement stmt = connection.createStatement()) {
             stmt.executeUpdate("DELETE FROM passwords");
             stmt.executeUpdate("DELETE FROM users");
             stmt.executeUpdate("DELETE FROM salt_history");
         }
 
-        // Finally, securely delete and recreate the database file
         try {
             connection.close();
             File dbFile = new File(DB_NAME);
             SecureWiper.secureDeleteFile(dbFile);
             
-            // Recreate database
             connection = DriverManager.getConnection("jdbc:sqlite:" + DB_NAME);
             createTables();
         } catch (IOException e) {
@@ -508,13 +473,11 @@ public class DatabaseManager {
     }
 
     public void deleteCurrentUser() throws SQLException {
-        // First get and securely wipe all user's password entries
         List<PasswordEntry> entries = getAllPasswords();
         for (PasswordEntry entry : entries) {
             entry.secureClear();
         }
 
-        // Then delete the user's data
         String sql = "DELETE FROM passwords WHERE user_id = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setInt(1, currentUserId);
@@ -527,7 +490,6 @@ public class DatabaseManager {
             pstmt.executeUpdate();
         }
 
-        // Securely wipe any encryption keys
         if (encryptor != null) {
             encryptor.secureWipeKeys();
         }
@@ -554,7 +516,6 @@ public class DatabaseManager {
                             categories.add(decryptedCategory);
                         }
                     } catch (Exception e) {
-                        // If decryption fails, it might be an old unencrypted category
                         categories.add(encryptedCategory);
                     }
                 }
@@ -563,9 +524,6 @@ public class DatabaseManager {
         return categories;
     }
 
-    /**
-     * Retrieves a single password entry by ID
-     */
     private PasswordEntry getPasswordEntry(int entryId) throws SQLException {
         String sql = "SELECT title, username, password, url, notes, category FROM passwords WHERE id = ? AND user_id = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
