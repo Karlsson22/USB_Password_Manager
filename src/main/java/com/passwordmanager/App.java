@@ -24,6 +24,18 @@ public class App extends Application {
     private DatabaseManager dbManager;
     private static final String APP_TITLE = "The Password Vault";
 
+    public static void main(String[] args) {
+        try {
+            launch(args);
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("JavaFX runtime components are missing")) {
+                System.err.println("JavaFX runtime is missing. Please make sure JavaFX is properly installed.");
+                System.exit(1);
+            }
+            throw e;
+        }
+    }
+
     @Override
     public void start(Stage stage) {
         try {
@@ -261,9 +273,5 @@ public class App extends Application {
         if (dbManager != null) {
             dbManager.closeConnection();
         }
-    }
-
-    public static void main(String[] args) {
-        launch();
     }
 } 
