@@ -14,9 +14,11 @@ public class InputValidator {
         if (input == null) {
             return null;
         }
-        return input.replace("'", "''") 
-                   .replace("\\", "\\\\") 
-                   .replace("\u0000", "");
+        return input.replace("'", "''")
+                   .replace("\\", "\\\\")
+                   .replace("\u0000", " ")
+                   .replace("\n", " ")
+                   .replace("\r", " ");
     }
     
     public static boolean isValidInput(String input) {
